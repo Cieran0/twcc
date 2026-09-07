@@ -130,14 +130,193 @@ typedef struct vector_token {
     size_t capacity;
 } vector_token;
 
-//TODO: implement vector of tokens
-void vector_token_push();
-void vector_token_pop();
-void vector_token_new();
-//Remove multiple from anywhere in vector
-void vector_token_remove();
-//Add multiple to anywhere in vector
-void vector_token_insert();
+token token_clone(token t) {
+    if (t.content == NULL) {
+        return t;
+    }
+
+    size_t content_size = strlen(t.content);
+    token cloned = t;
+    
+    cloned.content = (char*)malloc(content_size + 1);
+    if (cloned.content != NULL) {
+        memcpy(cloned.content, t.content, content_size + 1);
+    }
+
+    return cloned;
+}
+
+void vector_token_grow(vector_token* this, size_t grow_by_min) {
+    size_t new_cap = this->capacity == 0? 1 : this->capacity * 2;
+    while (new_cap < this->capacity+grow_by_min)
+    {
+        new_cap*=2;
+    }
+    
+    token* new_data = (token*)malloc(sizeof(token) * new_cap);
+
+    if(new_data == NULL) {
+        return;
+    }
+
+    memcpy(new_data, this->data, sizeof(token) * this->size);
+
+    free(this->data);
+
+    this->data = new_data;
+    this->capacity = new_cap;
+}
+
+void vector_token_push(vector_token* this, token t) {
+    if(this->size + 1 >= this->capacity) {
+        vector_token_grow(this, 1);
+    }
+
+    if(this->size + 1 >= this->capacity) {
+        return;
+    }
+
+    this->data[this->size] = t;
+    this->size++; 
+}
+
+void vector_token_pop(vector_token* this) {
+    if(this->size <= 0)
+        return;
+    
+    this->size--;
+    char* to_free = this->data[this->size].content;
+    
+    if(to_free == NULL)
+        return;
+
+    free(to_free);
+    this->data[this->size].content = NULL;
+}
+
+
+vector_token vector_token_new(size_t capacity) {
+    token* data = (token*)malloc(sizeof(token) * capacity);
+    return (vector_token) {
+        data,
+        0,
+        capacity
+    };
+}
+
+//Remove [start, end] from the vector
+void vector_token_remove(vector_token* this, size_t start, size_t end) {
+    if (this->size == 0) return;
+    if (start >= this->size) return;
+    
+    if (end >= this->size) {
+        end = this->size - 1; 
+    }
+    if (start > end) return;
+
+    size_t removal_size = (end - start) + 1;
+
+    for (size_t i = start; i <= end; i++) {
+        if (this->data[i].content != NULL) {
+            free(this->data[i].content);
+            this->data[i].content = NULL;
+        }
+    }
+
+    if (removal_size >= this->size) {
+        this->size = 0;
+        return;
+    }
+
+    size_t elements_to_move = this->size - (end + 1);
+    for (size_t i = 0; i < elements_to_move; i++) {
+        this->data[start + i] = this->data[end + 1 + i]; 
+    }
+    
+    this->size -= removal_size;
+}
+
+typedef struct name_type_pair {
+    const char* type;
+    char* name;
+} name_type_pair;
+
+typedef struct function {
+    name_type_pair signature;
+    size_t argc;
+    name_type_pair* arguments;
+    vector_token code;
+} function;
+
+const char* function_return_types[] = {
+    "int"
+};
+
+function* extract_function(vector_token* tokens) {
+
+    size_t signature_index = 0;
+    size_t argument_start = 0;
+    size_t argument_end = 0;
+    size_t code_start = 0;
+    size_t code_end = 0;
+    int found = 0;
+
+    for (size_t i = 0; i < tokens->size -2; i++)
+    {
+        if(tokens->data[i].type != TOKEN_TYPE) continue;
+        if(tokens->data[i+1].type != TOKEN_NAME) continue;
+        if(tokens->data[i+2].type != TOKEN_OPEN_BRACE) continue;
+        found = 1;
+        signature_index = i;
+        break;
+    }
+
+    if(!found) return NULL;
+    argument_start = signature_index+2;
+    
+    for (size_t i = argument_start+1; i < tokens->size; i++)
+    {
+        found = 0;
+        if(tokens->data[i].type == TOKEN_CLOSE_BRACE) {
+            found = 1;
+            argument_end = i;
+            break;
+        }
+    }
+    
+    if(!found) return NULL;
+    code_start = argument_end + 1;
+    if(code_start >= tokens->size || tokens->data[code_start].type != TOKEN_OPEN_CURLY_BRACE)
+        return NULL;
+
+    size_t open_counter = 0;
+    for (size_t i = code_start + 1; i < tokens->size; i++)
+    {
+        found = 0;
+        if(tokens->data[i].type == TOKEN_OPEN_CURLY_BRACE) {
+            open_counter++;
+        } else if (tokens->data[i].type != TOKEN_CLOSE_CURLY_BRACE) {
+            continue;
+        }
+
+        if (open_counter == 0) {
+            code_end = i;
+            found = 1;
+            break;
+        }
+
+        open_counter--;
+    }
+
+    if (!found) {
+        return NULL;
+    }
+    
+    //TODO: init function
+
+
+    return NULL;
+}
 
 int main(int argc, const char** argv) {
 
@@ -159,12 +338,12 @@ int main(int argc, const char** argv) {
 
     printf("Size: %llu, Cap: %llu\n", preta.current_size, preta.capacity);
     size_t token_count = preta.strings_stored;
-    token* tokens = malloc(sizeof(token)*token_count);
+    vector_token tokens = vector_token_new(preta.strings_stored);
 
     for (size_t i = 0; i < preta.strings_stored; i++)
     {
         char* string = preta.get_string(&preta, i);
-        tokens[i] = tokenise(string);
+        vector_token_push(&tokens, tokenise(string));
         printf("%s\n", string);
     }
 
@@ -172,12 +351,20 @@ int main(int argc, const char** argv) {
 
     for (size_t i = 0; i < token_count; i++)
     {
-        printf("%s", token_type_names[tokens[i].type]);
-        if (tokens[i].content != NULL) {
-            printf(": %s", tokens[i].content);
+        printf("%s", token_type_names[tokens.data[i].type]);
+        if (tokens.data[i].content != NULL) {
+            printf(": %s", tokens.data[i].content);
         }
         printf("\n");
     }
+
+    function* func_ptr = extract_function(&tokens);
+    if(func_ptr == NULL) {
+        printf("No Functions Found!\n");
+        return INVALID_INPUT_FILE;
+    }
+
+    function f = *func_ptr;
     
     return SUCCESS;
 }
