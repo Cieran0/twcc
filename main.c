@@ -4,6 +4,8 @@
 
 #include "pre_token_arena.h"
 #include "token.h"
+#include "abstract_syntax_tree.h"
+#include "types.h"
 
 enum error_no {
     SUCCESS = 0,
@@ -237,7 +239,7 @@ void vector_token_remove(vector_token* this, size_t start, size_t end) {
 }
 
 typedef struct name_type_pair {
-    const char* type;
+    builtin_type type;
     char* name;
 } name_type_pair;
 
@@ -248,9 +250,20 @@ typedef struct function {
     vector_token code;
 } function;
 
-const char* function_return_types[] = {
-    "int"
-};
+char* clone_str(const char* string) {
+    if(string == NULL)
+        return NULL;
+
+    size_t size = strlen(string);
+    char* cloned = (char*)malloc(size+1);
+    memcpy(cloned, string, size+1);
+    return cloned;
+}
+
+builtin_type type_from_type_token(token t) {
+    //TODO: actually implement this
+    return INT;
+}
 
 function* extract_function(vector_token* tokens) {
 
@@ -312,10 +325,189 @@ function* extract_function(vector_token* tokens) {
         return NULL;
     }
     
-    //TODO: init function
 
+    name_type_pair function_signature = {
+        type_from_type_token(tokens->data[signature_index]),
+        clone_str(tokens->data[signature_index+1].content)
+    };
 
+    size_t argc = 0;
+    name_type_pair* args = NULL;
+    
+    size_t current_idx = argument_start + 1; 
+    
+    while (current_idx < argument_end) {
+        if (tokens->data[current_idx].type != TOKEN_TYPE) break;
+        
+        if (current_idx + 1 >= argument_end) break;
+        if (tokens->data[current_idx + 1].type != TOKEN_NAME) break;
+        
+        argc++;
+        current_idx += 2;
+        
+        if (current_idx < argument_end) {
+            if (tokens->data[current_idx].type == TOKEN_COMMA) {
+                current_idx++;
+            } else {
+                found = 0;
+                break;
+            }
+        }
+    }
+    
+    if(!found) {
+        free(function_signature.name);
+        return NULL;
+    }
+
+    if(argc > 0 ) {
+        args = (name_type_pair*)malloc(sizeof(name_type_pair) * argc);
+        for (size_t i = 0; i < argc; i++)
+        {
+            size_t arg_index =  (argument_start+1)+i*3;
+            args[i] = (name_type_pair) {
+                type_from_type_token(tokens->data[arg_index]),
+                clone_str(tokens->data[arg_index+1].content)
+            };
+        }
+        
+    }
+
+    vector_token code = vector_token_new((code_end-code_start)+1);
+
+    for (size_t i = code_start+1; i < code_end; i++)
+    {
+        vector_token_push(&code, token_clone(tokens->data[i]));
+    }
+    
+    function* f = (function*)malloc(sizeof(function));
+
+    *f = (function) {
+        function_signature,
+        argc,
+        args,
+        code
+    };
+
+    vector_token_remove(tokens, signature_index, code_end);
+
+    return f;
+}
+
+ast_node* create_node(token t) {
+    ast_node* node = (ast_node*)malloc(sizeof(ast_node));
+    node->self = token_clone(t);
+    node->children = NULL;
+    node->children_count = 0;
+    return node;
+}
+
+void add_child(ast_node* parent, ast_node* child) {
+    if (!parent || !child) return;
+    parent->children_count++;
+    parent->children = (ast_node**)realloc(parent->children, sizeof(ast_node*) * parent->children_count);
+    parent->children[parent->children_count - 1] = child;
+}
+
+ast_node* parse_primary(vector_token* code, size_t* index, size_t end) {
+    if (*index >= end) return NULL;
+
+    token current = code->data[*index];
+
+    if (current.type == TOKEN_NAME) {
+        (*index)++;
+        return create_node(current);
+    }
+
+    // TODO: Add support for stuff other than names
     return NULL;
+}
+
+//TODO: multiple expression could happen at once? a+b+c
+ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
+    ast_node* left = parse_primary(code, index, end);
+    if (!left) return NULL;
+
+    while (*index < end) {
+        token op = code->data[*index];
+
+        if (op.type == TOKEN_PLUS) {
+            (*index)++;
+
+            ast_node* right = parse_primary(code, index, end);
+            if (!right) break;
+
+            ast_node* bin_op = create_node(op);
+            add_child(bin_op, left);
+            add_child(bin_op, right);
+
+            left = bin_op;
+        } else {
+            //Left is a primary?
+            break;
+        }
+    }
+
+    return left;
+}
+
+ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
+    if (*index >= end) return NULL;
+
+    token current = code->data[*index];
+
+    if (current.type == TOKEN_RETURN) {
+        ast_node* return_node = create_node(current);
+        (*index)++;
+
+        if (*index < end && code->data[*index].type != TOKEN_SEMI_COLON) {
+            ast_node* expr = parse_expression(code, index, end);
+            if (expr) {
+                add_child(return_node, expr);
+            }
+        }
+        return return_node;
+    } 
+    else if (current.type == TOKEN_NAME) {
+        return parse_expression(code, index, end);
+    }
+
+    //Fallback
+    (*index)++;
+    return create_node(current);
+}
+
+
+abstract_syntax_tree parse_ast(function* f) {
+    abstract_syntax_tree ast = {0};
+    ast.statements = NULL;
+    ast.statements_count = 0;
+
+    vector_token* code = &(f->code);
+    size_t index = 0;
+    size_t end = code->size;
+
+    while (index < end) {
+        if (code->data[index].type == TOKEN_SEMI_COLON) {
+            index++;
+            continue;
+        }
+
+        ast_node* stmt = parse_statement(code, &index, end);
+        
+        if (stmt) {
+            ast.statements_count++;
+            ast.statements = (ast_node**)realloc(ast.statements, sizeof(ast_node*) * ast.statements_count);
+            ast.statements[ast.statements_count - 1] = stmt;
+        }
+
+        // Consume the semicolon that ends the statement
+        if (index < end && code->data[index].type == TOKEN_SEMI_COLON) {
+            index++;
+        }
+    }
+
+    return ast;
 }
 
 int main(int argc, const char** argv) {
@@ -337,7 +529,6 @@ int main(int argc, const char** argv) {
     free(file);
 
     printf("Size: %llu, Cap: %llu\n", preta.current_size, preta.capacity);
-    size_t token_count = preta.strings_stored;
     vector_token tokens = vector_token_new(preta.strings_stored);
 
     for (size_t i = 0; i < preta.strings_stored; i++)
@@ -349,22 +540,43 @@ int main(int argc, const char** argv) {
 
     free(preta.start);
 
-    for (size_t i = 0; i < token_count; i++)
-    {
-        printf("%s", token_type_names[tokens.data[i].type]);
-        if (tokens.data[i].content != NULL) {
-            printf(": %s", tokens.data[i].content);
-        }
-        printf("\n");
-    }
+    // for (size_t i = 0; i < tokens.size; i++)
+    // {
+    //     printf("%s", token_type_names[tokens.data[i].type]);
+    //     if (tokens.data[i].content != NULL) {
+    //         printf(": %s", tokens.data[i].content);
+    //     }
+    //     printf("\n");
+    // }
 
     function* func_ptr = extract_function(&tokens);
     if(func_ptr == NULL) {
         printf("No Functions Found!\n");
         return INVALID_INPUT_FILE;
     }
-
     function f = *func_ptr;
+
+    printf("Name: %s\n", f.signature.name);
+    printf("Return Type: int\n");
     
+    printf("Arguments:\n");
+    for (size_t i = 0; i < f.argc; i++)
+    {
+        printf("Name: %s\n", f.arguments[i].name);
+        printf("Type: int\n");
+    }
+    printf("---------\n");
+
+    for (size_t i = 0; i < f.code.size; i++)
+    {
+        printf("%s", token_type_names[f.code.data[i].type]);
+        if (f.code.data[i].content != NULL) {
+            printf(": %s", f.code.data[i].content);
+        }
+        printf("\n");
+    }
+    
+    abstract_syntax_tree ast = parse_ast(&f);
+
     return SUCCESS;
 }

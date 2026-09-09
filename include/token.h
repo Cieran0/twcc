@@ -14,11 +14,11 @@
     X(TOKEN_SEMI_COLON)
 
 // Generate the Enum
-enum token_type {
+typedef enum token_type {
     #define X(name) name,
     TOKEN_LIST
     #undef X
-};
+} token_type;
 
 // Generate the String Array
 static const char* token_type_names[] = {
