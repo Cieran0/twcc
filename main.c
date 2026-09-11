@@ -6,6 +6,7 @@
 #include "token.h"
 #include "abstract_syntax_tree.h"
 #include "types.h"
+#include "symbol_table.h"
 
 enum error_no {
     SUCCESS = 0,
@@ -510,6 +511,33 @@ abstract_syntax_tree parse_ast(function* f) {
     return ast;
 }
 
+int analyse_ast_node(ast_node* node, symbol_table* scope) {
+    if(node == NULL) return 1;
+    
+    token self = node->self;
+    if(self.type == TOKEN_NAME) {
+        symbol* sy = symbol_table_lookup(scope, self.content);
+        if(sy == NULL) {
+            printf("Undeclared variable: %s found\n", self.content);
+            return 1;
+        }
+    }
+    else if (self.type == TOKEN_RETURN) {
+        //Check return type matches function return type
+    } else if (self.type == TOKEN_PLUS) {
+        //Check both are numeric
+    }
+
+    int invalid_children = 0;
+    for (size_t i = 0; i < node->children_count; i++)
+    {
+        invalid_children += analyse_ast_node(node->children[i], scope);
+    }
+    
+
+    return invalid_children;
+}
+
 int main(int argc, const char** argv) {
 
     if(argc < 2) {
@@ -577,6 +605,27 @@ int main(int argc, const char** argv) {
     }
     
     abstract_syntax_tree ast = parse_ast(&f);
+
+    symbol_table st = symbol_table_new(64);
+
+    for (size_t i = 0; i < f.argc; i++)
+    {
+        name_type_pair arg = f.arguments[i];
+        symbol_table_add(&st, arg.name, arg.type);
+    }
+    
+    int invalid_nodes = 0;
+    for (size_t i = 0; i < ast.statements_count; i++)
+    {
+        invalid_nodes += analyse_ast_node(ast.statements[i], &st);
+    }
+
+    if(invalid_nodes) {
+        printf("Found %d invalid nodes\n", invalid_nodes);
+        return INVALID_INPUT_FILE;
+    }
+    
+    printf("Semantic type check passed\n");
 
     return SUCCESS;
 }
