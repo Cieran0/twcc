@@ -538,6 +538,178 @@ int analyse_ast_node(ast_node* node, symbol_table* scope) {
     return invalid_children;
 }
 
+typedef struct string_builder
+{
+    char* string;
+    size_t size;
+    size_t capacity;
+} string_builder;
+
+string_builder string_builder_new(size_t capacity) {
+    char* string = capacity <= 0? NULL : (char*)malloc(capacity);
+
+    return (string_builder){
+        .string = string,
+        .size = 0,
+        .capacity = capacity
+    };
+}
+
+void string_builder_grow(string_builder* sb, size_t grow_by_min) {
+    if(grow_by_min <= 0) return;
+    if(sb == NULL) return;
+    
+    size_t new_capacity = sb->capacity > 0 ? sb->capacity*2 : 1;
+    while (new_capacity < sb->capacity + grow_by_min)
+    {
+        new_capacity *= 2;
+    }
+    
+    char* new_string = (char*)malloc(new_capacity);
+    memcpy(new_string, sb->string, sb->size);
+    free(sb->string);
+    sb->string = new_string;
+    sb->capacity = new_capacity;
+}
+
+void string_builder_append(string_builder* sb, const char* to_append) {
+    if(to_append == NULL) return;
+
+    size_t size = strlen(to_append);
+    size_t room_needed = sb->capacity - (sb->size + size);
+    if(room_needed > 0) {
+        string_builder_grow(sb, room_needed);
+    }
+
+    for (size_t i = 0; i < size; i++)
+    {
+        sb->string[sb->size + i] = to_append[i];
+    }
+    
+    sb->size += size;
+}
+
+char* string_builder_build(string_builder* sb) {
+    char* string = (char*)malloc(sb->size+1);
+    memcpy(string, sb->string, sb->size);
+    string[sb->size] = '\0';
+    return string;
+}
+
+void string_builder_destroy(string_builder* sb) {
+    sb->capacity = 0;
+    sb->size = 0;
+    free(sb->string);
+    sb->string = NULL;
+}
+
+const char* get_var_register(const char* name, function *f) {
+    const char* registers[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+    for (size_t i = 0; i < f->argc; i++) {
+        if (strcmp(name, f->arguments[i].name) == 0) {
+            if (i < 6) return registers[i];
+        }
+    }
+
+    //TODO: support more than 6 input variables
+    return "UNKNOWN_VAR";
+}
+
+char* generate_asm_from_expression(ast_node* node, function *f) {
+    if (node == NULL) {
+        return NULL;
+    }
+
+    string_builder sb = string_builder_new(64);
+    
+    if (node->self.type == TOKEN_NAME) {
+        string_builder_append(&sb, "\tmov rax, ");
+        string_builder_append(&sb, get_var_register(node->self.content, f));
+        string_builder_append(&sb, "\n");
+    } 
+    else if (node->self.type == TOKEN_PLUS) {
+        
+        //Put left hand side in RAX
+        char* left_side = generate_asm_from_expression(node->children[0], f);
+        string_builder_append(&sb, left_side);
+        free(left_side);
+        
+        //Save left side to stack
+        string_builder_append(&sb, "\tpush rax\n");
+        
+        //Put right hand side in RAX
+        char* right_side = generate_asm_from_expression(node->children[1], f);
+        string_builder_append(&sb, right_side);
+        free(right_side);
+        
+        //Pop the left side into rcx
+        string_builder_append(&sb, "\tpop rcx\n");
+        
+        //Add them together
+        string_builder_append(&sb, "\tadd rax, rcx\n");
+    }
+
+    char* string = string_builder_build(&sb);
+    string_builder_destroy(&sb);
+    return string;
+}
+
+char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol_table st) {
+    string_builder sb = string_builder_new(1024);
+
+    //Add function label
+    string_builder_append(&sb, ".intel_syntax noprefix\n");
+    string_builder_append(&sb, ".global ");
+    string_builder_append(&sb, func.signature.name);
+    string_builder_append(&sb, "\n");
+    string_builder_append(&sb, func.signature.name);
+    string_builder_append(&sb, ":\n");
+
+    // Set up stack frame
+    string_builder_append(&sb, "\tpush rbp\n");
+    string_builder_append(&sb, "\tmov rbp, rsp\n");
+    
+    for (size_t i = 0; i < ast.statements_count; i++)
+    {
+        ast_node* statement = ast.statements[i];
+
+        if(statement->self.type == TOKEN_RETURN) {
+
+            if(statement->children_count > 0) {
+                char* expression_asm = generate_asm_from_expression(statement->children[0], &func);
+                string_builder_append(&sb, expression_asm);
+                free(expression_asm);
+            } else {
+                string_builder_append(&sb, "\txor rax,rax\n");
+            }
+
+        } else {
+            //TODO: handle different types here
+            printf("generate_asm_from_function failed due to not being TOKEN_RETURN");
+            exit(INVALID_INPUT_FILE);
+        }
+    }
+    
+
+    // Tear down stack frame
+    string_builder_append(&sb, "\tpop rbp\n");
+    string_builder_append(&sb, "\tret\n");
+
+    char* function_asm = string_builder_build(&sb);
+    string_builder_destroy(&sb);
+    return function_asm;
+}
+
+void write_to_file(const char* filename, const char* string) {
+    FILE *f;
+
+    f = fopen(filename, "w");
+
+    fprintf(f, string);
+
+    fclose(f); 
+}
+
 int main(int argc, const char** argv) {
 
     if(argc < 2) {
@@ -626,6 +798,13 @@ int main(int argc, const char** argv) {
     }
     
     printf("Semantic type check passed\n");
+
+    printf("Function Code\n--------------\n");
+    char* function_code = generate_asm_from_function(f, ast, st);
+    printf("%s", function_code);
+    printf("--------------\n");
+
+    write_to_file("add.s", function_code);
 
     return SUCCESS;
 }
