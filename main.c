@@ -30,7 +30,7 @@ char* load_file(const char* filename) {
 }
 
 int is_special_char(char c) {
-    const char special_chars[] = "(){},;+";
+    const char special_chars[] = "(){},;+*";
     const size_t len = sizeof(special_chars) - 1;
     for (size_t i = 0; i < len; i++)
     {
@@ -92,6 +92,8 @@ token tokenise_char(char c) {
         return (token) {TOKEN_PLUS, NULL};
     case ';':
         return (token) {TOKEN_SEMI_COLON, NULL};
+    case '*':
+        return (token) {TOKEN_STAR, NULL};
     }
 
     char* content = malloc(2);
@@ -432,7 +434,8 @@ ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
     while (*index < end) {
         token op = code->data[*index];
 
-        if (op.type == TOKEN_PLUS) {
+        //TODO: sort out this before it becomes a mess
+        if (op.type == TOKEN_PLUS || op.type == TOKEN_STAR) {
             (*index)++;
 
             ast_node* right = parse_primary(code, index, end);
@@ -621,13 +624,15 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
     }
 
     string_builder sb = string_builder_new(64);
+    token_type type = node->self.type;
     
-    if (node->self.type == TOKEN_NAME) {
+    if (type == TOKEN_NAME) {
         string_builder_append(&sb, "\tmov rax, ");
         string_builder_append(&sb, get_var_register(node->self.content, f));
         string_builder_append(&sb, "\n");
     } 
-    else if (node->self.type == TOKEN_PLUS) {
+    //TODO: also sort this out before becomes a mess
+    else if (type == TOKEN_PLUS || type == TOKEN_STAR) {
         
         //Put left hand side in RAX
         char* left_side = generate_asm_from_expression(node->children[0], f);
@@ -646,7 +651,14 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         string_builder_append(&sb, "\tpop rcx\n");
         
         //Add them together
-        string_builder_append(&sb, "\tadd rax, rcx\n");
+        if(type == TOKEN_PLUS) {
+            string_builder_append(&sb, "\tadd rax, rcx\n");
+        } else if (type == TOKEN_STAR) {
+            string_builder_append(&sb, "\timul rax, rcx\n");
+        }
+    } else {
+        printf("Encountered unexpected Token of type: %s\n", token_type_names[type]);
+        return NULL;
     }
 
     char* string = string_builder_build(&sb);
