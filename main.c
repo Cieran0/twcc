@@ -19,6 +19,8 @@ enum error_no {
 const int true = 1;
 const int false = 0;
 
+typedef int bool;
+
 char* load_file(const char* filename) {
     FILE *f = fopen(filename, "rb");
     if(!f) return NULL;
@@ -35,7 +37,7 @@ char* load_file(const char* filename) {
 }
 
 int is_special_char(char c) {
-    const char special_chars[] = "(){},;+*";
+    const char special_chars[] = "(){},;+*-";
     const size_t len = sizeof(special_chars) - 1;
     for (size_t i = 0; i < len; i++)
     {
@@ -99,6 +101,8 @@ token tokenise_char(char c) {
         return (token) {TOKEN_SEMI_COLON, NULL};
     case '*':
         return (token) {TOKEN_STAR, NULL};
+    case '-':
+        return (token) {TOKEN_MINUS, NULL};
     }
 
     char* content = malloc(2);
@@ -432,7 +436,20 @@ ast_node* parse_primary(vector_token* code, size_t* index, size_t end) {
     return NULL;
 }
 
-//TODO: multiple expression could happen at once? a+b+c
+const bool is_binary_operation(token_type type) {
+    switch (type)
+    {
+    case TOKEN_PLUS:
+    case TOKEN_MINUS:
+    case TOKEN_STAR:
+        return true;
+    
+    default:
+        return false;
+    }
+    
+}
+
 ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
     ast_node* left = parse_primary(code, index, end);
     if (!left) return NULL;
@@ -440,8 +457,7 @@ ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
     while (*index < end) {
         token op = code->data[*index];
 
-        //TODO: sort out this before it becomes a mess
-        if (op.type == TOKEN_PLUS || op.type == TOKEN_STAR) {
+        if (is_binary_operation(op.type)) {
             (*index)++;
 
             ast_node* right = parse_primary(code, index, end);
@@ -638,8 +654,7 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         string_builder_append(&sb, get_var_register(node->self.content, f));
         string_builder_append(&sb, "\n");
     } 
-    //TODO: also sort this out before becomes a mess
-    else if (type == TOKEN_PLUS || type == TOKEN_STAR) {
+    else if (is_binary_operation(type)) {
         
         //Put left hand side in RAX
         char* left_side = generate_asm_from_expression(node->children[0], f);
@@ -662,6 +677,11 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
             string_builder_append(&sb, "\tadd rax, rcx\n");
         } else if (type == TOKEN_STAR) {
             string_builder_append(&sb, "\timul rax, rcx\n");
+        } else if (type == TOKEN_MINUS) {
+            string_builder_append(&sb, "\tsub rcx, rax\n");
+            string_builder_append(&sb, "\tmov rax, rcx\n");
+        } else {
+            assert(false && type);
         }
     } else {
         printf("Encountered unexpected Token of type: %s\n", token_type_names[type]);
