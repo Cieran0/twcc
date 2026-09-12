@@ -717,6 +717,13 @@ int main(int argc, const char** argv) {
         return NO_INPUT_FILE;
     }
 
+    const char* output_name = "out.s";
+    if (argc >= 3)
+    {
+        output_name = argv[2];
+    }
+     
+
     char* file = load_file(argv[1]);
     if(!file) {
         printf("Invalid Input File: %s\n", argv[1]);
@@ -804,7 +811,7 @@ int main(int argc, const char** argv) {
     printf("%s", function_code);
     printf("--------------\n");
 
-    write_to_file("add.s", function_code);
+    write_to_file(output_name, function_code);
 
     return SUCCESS;
 }
