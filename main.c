@@ -8,11 +8,16 @@
 #include "types.h"
 #include "symbol_table.h"
 
+#include "assert.h"
+
 enum error_no {
     SUCCESS = 0,
     NO_INPUT_FILE,
     INVALID_INPUT_FILE,
 };
+
+const int true = 1;
+const int false = 0;
 
 char* load_file(const char* filename) {
     FILE *f = fopen(filename, "rb");
@@ -422,6 +427,7 @@ ast_node* parse_primary(vector_token* code, size_t* index, size_t end) {
         return create_node(current);
     }
 
+    assert(false);
     // TODO: Add support for stuff other than names
     return NULL;
 }
@@ -615,6 +621,7 @@ const char* get_var_register(const char* name, function *f) {
     }
 
     //TODO: support more than 6 input variables
+    assert(false);
     return "UNKNOWN_VAR";
 }
 
@@ -658,6 +665,7 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         }
     } else {
         printf("Encountered unexpected Token of type: %s\n", token_type_names[type]);
+        assert(false);
         return NULL;
     }
 
@@ -698,7 +706,7 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
         } else {
             //TODO: handle different types here
             printf("generate_asm_from_function failed due to not being TOKEN_RETURN");
-            exit(INVALID_INPUT_FILE);
+            assert(false);
         }
     }
     
@@ -720,6 +728,32 @@ void write_to_file(const char* filename, const char* string) {
     fprintf(f, string);
 
     fclose(f); 
+}
+
+void print_ast_node(ast_node* node, size_t depth) {
+    for (size_t i = 0; i < depth; i++)
+    {
+        printf("  ");
+    }
+    if(depth > 0) {
+        printf("|-");
+    }
+    printf("%s\n", node->self.type == TOKEN_NAME ? node->self.content : token_type_names[node->self.type]);
+    for (size_t i = 0; i < node->children_count; i++)
+    {
+        print_ast_node(node->children[i], depth+1);
+    }
+    
+}
+
+void print_ast(abstract_syntax_tree* ast) {
+    printf("AST Statements\n-----------\n");
+    for (size_t i = 0; i < ast->statements_count; i++)
+    {
+        printf("Statement %d:\n-----------\n", i+1);
+        print_ast_node(ast->statements[i], 0);
+        printf("-----------\n");
+    }
 }
 
 int main(int argc, const char** argv) {
@@ -796,6 +830,8 @@ int main(int argc, const char** argv) {
     }
     
     abstract_syntax_tree ast = parse_ast(&f);
+
+    print_ast(&ast);
 
     symbol_table st = symbol_table_new(64);
 
