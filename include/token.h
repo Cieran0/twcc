@@ -13,6 +13,7 @@
     X(TOKEN_PLUS) \
     X(TOKEN_MINUS) \
     X(TOKEN_STAR) \
+    X(TOKEN_DIV) \
     X(TOKEN_SEMI_COLON)
 
 // Generate the Enum

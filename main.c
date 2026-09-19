@@ -1,6 +1,7 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "stdbool.h"
 
 #include "pre_token_arena.h"
 #include "token.h"
@@ -16,10 +17,6 @@ enum error_no {
     INVALID_INPUT_FILE,
 };
 
-const int true = 1;
-const int false = 0;
-
-typedef int bool;
 
 char* load_file(const char* filename) {
     FILE *f = fopen(filename, "rb");
@@ -37,7 +34,7 @@ char* load_file(const char* filename) {
 }
 
 int is_special_char(char c) {
-    const char special_chars[] = "(){},;+*-";
+    const char special_chars[] = "(){},;+*-/";
     const size_t len = sizeof(special_chars) - 1;
     for (size_t i = 0; i < len; i++)
     {
@@ -103,6 +100,8 @@ token tokenise_char(char c) {
         return (token) {TOKEN_STAR, NULL};
     case '-':
         return (token) {TOKEN_MINUS, NULL};
+    case '/':
+        return (token) {TOKEN_DIV, NULL};
     }
 
     char* content = malloc(2);
@@ -442,6 +441,7 @@ const bool is_binary_operation(token_type type) {
     case TOKEN_PLUS:
     case TOKEN_MINUS:
     case TOKEN_STAR:
+    case TOKEN_DIV:
         return true;
     
     default:
@@ -670,7 +670,8 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         free(right_side);
         
         //Pop the left side into rcx
-        string_builder_append(&sb, "\tpop rcx\n");
+        string_builder_append(&sb, "\tmov rcx, rax\n");
+        string_builder_append(&sb, "\tpop rax\n");
         
         //Add them together
         if(type == TOKEN_PLUS) {
@@ -678,8 +679,10 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         } else if (type == TOKEN_STAR) {
             string_builder_append(&sb, "\timul rax, rcx\n");
         } else if (type == TOKEN_MINUS) {
-            string_builder_append(&sb, "\tsub rcx, rax\n");
-            string_builder_append(&sb, "\tmov rax, rcx\n");
+            string_builder_append(&sb, "\tsub rax, rcx\n");
+        } else if (type == TOKEN_DIV) {
+            string_builder_append(&sb, "\tcqo\n");
+            string_builder_append(&sb, "\tidiv rcx\n");
         } else {
             assert(false && type);
         }
