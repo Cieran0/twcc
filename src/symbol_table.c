@@ -1,12 +1,12 @@
 #include "symbol_table.h"
 #include "string.h"
 
-symbol_table symbol_table_new(size_t capacity) {
+symbol_table symbol_table_new(size_t capacity, symbol_table* parent) {
     return (symbol_table) {
         .table = capacity > 0? malloc(sizeof(symbol)*capacity) : NULL,
         .size = 0,
         .capacity = capacity,
-        .parent = NULL
+        .parent = parent
     };
 }
 

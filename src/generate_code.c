@@ -5,16 +5,19 @@
 #include "string.h"
 #include "tokenise.h"
 
+const char* registers[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+
 const char* get_var_register(const char* name, function *f) {
-    const char* registers[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
     for (size_t i = 0; i < f->argc; i++) {
         if (strcmp(name, f->arguments[i].name) == 0) {
+            if( i >= 6 ) 
+                assert(false);
+
             if (i < 6) return registers[i];
         }
     }
 
     //TODO: support more than 6 input variables
-    assert(false);
     return "UNKNOWN_VAR";
 }
 
@@ -63,7 +66,32 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         } else {
             assert(false && type);
         }
-    } else {
+    } else if (type == TOKEN_FUNCTION_CALL) {
+        size_t argc = node->children_count;
+
+        for (int i = argc - 1 ; i >= 0; i--)
+        {
+            char* argument_asm = generate_asm_from_expression(node->children[i], f);
+            string_builder_append(&sb, argument_asm);
+            free(argument_asm);
+
+            string_builder_append(&sb, "\tpush rax\n");
+        }
+        
+        for (size_t i = 0; i < argc; i++)
+        {
+            string_builder_append(&sb, "\tpop ");
+            string_builder_append(&sb, registers[i]);
+            string_builder_append(&sb, "\n");
+        }
+        
+        string_builder_append(&sb, "\tcall ");
+        string_builder_append(&sb, node->self.content);
+        string_builder_append(&sb, "\n");
+
+    }
+    
+    else {
         printf("Encountered unexpected Token of type: %s\n", token_type_names[type]);
         assert(false);
         return NULL;

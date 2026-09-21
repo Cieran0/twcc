@@ -18,7 +18,7 @@ struct symbol_table
     symbol_table* parent;
 };
 
-symbol_table symbol_table_new(size_t capacity);
+symbol_table symbol_table_new(size_t capacity, symbol_table* parent);
 
 void symbol_table_add(symbol_table* table, const char* name, builtin_type type);
 

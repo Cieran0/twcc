@@ -22,17 +22,28 @@ void add_child(ast_node* parent, ast_node* child) {
 }
 
 ast_node* parse_primary(vector_token* code, size_t* index, size_t end) {
-    if (*index >= end) return NULL;
+    
+    if (*index >= end) {
+        return NULL;
+    }
 
     token current = code->data[*index];
 
+
     if (current.type == TOKEN_NAME) {
         (*index)++;
+        
+        if(*index < end) {
+            if(code->data[*index].type == TOKEN_OPEN_BRACE) {
+                current.type = TOKEN_FUNCTION_CALL;            
+            }
+        }
+
         return create_node(current);
     }
 
+    printf("Encountered Unexpected Type: %s\n", token_type_names[current.type]);
     assert(false);
-    // TODO: Add support for stuff other than names
     return NULL;
 }
 
@@ -63,8 +74,31 @@ void print_ast(abstract_syntax_tree* ast) {
 }
 
 ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
+    
     ast_node* left = parse_primary(code, index, end);
-    if (!left) return NULL;
+    if (!left) {
+        return NULL;
+    }
+
+    if (left->self.type == TOKEN_FUNCTION_CALL) {
+        while (*index < end)
+        {
+            token tk = code->data[*index];
+            
+            if(tk.type == TOKEN_OPEN_BRACE) {
+                (*index)++;
+                continue;
+            } else if (tk.type == TOKEN_CLOSE_BRACE) {
+                (*index)++;
+                break;
+            } else if (tk.type == TOKEN_COMMA) {
+                (*index)++;
+                continue;
+            }
+            ast_node* child = parse_expression(code, index, end);
+            add_child(left, child);
+        }
+    }
 
     while (*index < end) {
         token op = code->data[*index];
@@ -72,7 +106,7 @@ ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
         if (is_binary_operation(op.type)) {
             (*index)++;
 
-            ast_node* right = parse_primary(code, index, end);
+            ast_node* right = parse_expression(code, index, end);
             if (!right) break;
 
             ast_node* bin_op = create_node(op);
@@ -90,6 +124,7 @@ ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
 }
 
 ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
+    printf("DEBUG parse_statement: index=%zu\n", *index);
     if (*index >= end) return NULL;
 
     token current = code->data[*index];
@@ -156,6 +191,13 @@ int analyse_ast_node(ast_node* node, symbol_table* scope) {
         symbol* sy = symbol_table_lookup(scope, self.content);
         if(sy == NULL) {
             printf("Undeclared variable: %s found\n", self.content);
+            return 1;
+        }
+    } else if (self.type == TOKEN_FUNCTION_CALL) {
+        //Check if signature is correct
+        symbol* sy = symbol_table_lookup(scope, self.content);
+        if(sy == NULL) {
+            printf("Undeclared function: %s found\n", self.content);
             return 1;
         }
     }

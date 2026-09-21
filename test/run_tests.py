@@ -50,6 +50,13 @@ test_cases = {
         ["sub", [6,2], 4],
         ["sub", [8,8], 0],
         ["sub", [100,50], 50],
+    ],
+    "call_function": [
+        ["add_and_double", [1,2], 6],
+        ["add_and_double", [5,9], (5+9)*2],
+        ["add_and_double", [10,62], 72*2],
+        ["add_and_double", [2435,564552], (2435+564552)*2],
+        ["add_and_double", [1213,21232], (1213+21232)*2],
     ]
 }
 

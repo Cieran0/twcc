@@ -61,12 +61,16 @@ int main(int argc, const char** argv) {
     string_builder sb = string_builder_new(1024);
     string_builder_append(&sb, ".intel_syntax noprefix\n");
 
+    symbol_table global = symbol_table_new(128, NULL);
+
     int func_count = 0;
 
     while (func_ptr != NULL)
     {
         func_count++;
         function f = *func_ptr;
+
+        symbol_table_add(&global, f.signature.name, f.signature.type);
 
         printf("Name: %s\n", f.signature.name);
         printf("Return Type: int\n");
@@ -92,7 +96,8 @@ int main(int argc, const char** argv) {
 
         print_ast(&ast);
 
-        symbol_table st = symbol_table_new(64);
+        symbol_table st = symbol_table_new(64, &global);
+        
 
         for (size_t i = 0; i < f.argc; i++)
         {
