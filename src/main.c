@@ -36,7 +36,6 @@ int main(int argc, const char** argv) {
     {
         output_name = argv[2];
     }
-     
 
     char* file = load_file(argv[1]);
     if(!file) {
@@ -59,63 +58,83 @@ int main(int argc, const char** argv) {
     // }
 
     function* func_ptr = extract_function(&tokens);
-    if(func_ptr == NULL) {
-        printf("No Functions Found!\n");
-        return INVALID_INPUT_FILE;
-    }
-    function f = *func_ptr;
+    string_builder sb = string_builder_new(1024);
+    string_builder_append(&sb, ".intel_syntax noprefix\n");
 
-    printf("Name: %s\n", f.signature.name);
-    printf("Return Type: int\n");
-    
-    printf("Arguments:\n");
-    for (size_t i = 0; i < f.argc; i++)
-    {
-        printf("Name: %s\n", f.arguments[i].name);
-        printf("Type: int\n");
-    }
-    printf("---------\n");
+    int func_count = 0;
 
-    for (size_t i = 0; i < f.code.size; i++)
+    while (func_ptr != NULL)
     {
-        printf("%s", token_type_names[f.code.data[i].type]);
-        if (f.code.data[i].content != NULL) {
-            printf(": %s", f.code.data[i].content);
+        func_count++;
+        function f = *func_ptr;
+
+        printf("Name: %s\n", f.signature.name);
+        printf("Return Type: int\n");
+        
+        printf("Arguments:\n");
+        for (size_t i = 0; i < f.argc; i++)
+        {
+            printf("Name: %s\n", f.arguments[i].name);
+            printf("Type: int\n");
         }
-        printf("\n");
+        printf("---------\n");
+
+        for (size_t i = 0; i < f.code.size; i++)
+        {
+            printf("%s", token_type_names[f.code.data[i].type]);
+            if (f.code.data[i].content != NULL) {
+                printf(": %s", f.code.data[i].content);
+            }
+            printf("\n");
+        }
+        
+        abstract_syntax_tree ast = parse_ast(&f);
+
+        print_ast(&ast);
+
+        symbol_table st = symbol_table_new(64);
+
+        for (size_t i = 0; i < f.argc; i++)
+        {
+            name_type_pair arg = f.arguments[i];
+            symbol_table_add(&st, arg.name, arg.type);
+        }
+        
+        int invalid_nodes = 0;
+        for (size_t i = 0; i < ast.statements_count; i++)
+        {
+            invalid_nodes += analyse_ast_node(ast.statements[i], &st);
+        }
+
+        if(invalid_nodes) {
+            printf("Found %d invalid nodes\n", invalid_nodes);
+            return INVALID_INPUT_FILE;
+        }
+        
+        printf("Semantic type check passed\n");
+
+        printf("Function Code\n--------------\n");
+        char* function_code = generate_asm_from_function(f, ast, st);
+        printf("%s", function_code);
+        printf("--------------\n");
+
+        string_builder_append(&sb, function_code);
+        free(function_code);
+
+        func_ptr = extract_function(&tokens);
     }
-    
-    abstract_syntax_tree ast = parse_ast(&f);
 
-    print_ast(&ast);
-
-    symbol_table st = symbol_table_new(64);
-
-    for (size_t i = 0; i < f.argc; i++)
-    {
-        name_type_pair arg = f.arguments[i];
-        symbol_table_add(&st, arg.name, arg.type);
-    }
-    
-    int invalid_nodes = 0;
-    for (size_t i = 0; i < ast.statements_count; i++)
-    {
-        invalid_nodes += analyse_ast_node(ast.statements[i], &st);
-    }
-
-    if(invalid_nodes) {
-        printf("Found %d invalid nodes\n", invalid_nodes);
+    if(func_count == 0) {
+        printf("No functions found!\n");
         return INVALID_INPUT_FILE;
     }
-    
-    printf("Semantic type check passed\n");
 
-    printf("Function Code\n--------------\n");
-    char* function_code = generate_asm_from_function(f, ast, st);
-    printf("%s", function_code);
-    printf("--------------\n");
+    char* generated_code = string_builder_build(&sb);
 
-    write_to_file(output_name, function_code);
+    write_to_file(output_name, generated_code);
+
+    free(generated_code);
+    string_builder_destroy(&sb);
 
     return SUCCESS;
 }

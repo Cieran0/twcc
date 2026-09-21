@@ -78,7 +78,6 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
     string_builder sb = string_builder_new(1024);
 
     //Add function label
-    string_builder_append(&sb, ".intel_syntax noprefix\n");
     string_builder_append(&sb, ".global ");
     string_builder_append(&sb, func.signature.name);
     string_builder_append(&sb, "\n");
