@@ -1,6 +1,23 @@
-build:
-	gcc -o twcc main.c pre_token_arena.c symbol_table.c -Iinclude
+CC := gcc
+CFLAGS := -Iinclude
+TARGET := twcc
+SRCS := $(wildcard src/*.c)
+OBJS := $(patsubst src/%.c,build/%.o,$(SRCS))
+JOBS := $(shell nproc)
 
-run:
-	gcc -o twcc main.c pre_token_arena.c symbol_table.c -Iinclude
-	./twcc
+.PHONY: all build clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
+
+build/%.o: src/%.c
+	@mkdir -p build
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build:
+	$(MAKE) -j$(JOBS)
+
+clean:
+	rm -rf build $(TARGET)
