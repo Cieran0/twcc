@@ -42,16 +42,12 @@ void string_builder_append(string_builder* sb, const char* to_append) {
     if(to_append == NULL) return;
 
     size_t size = strlen(to_append);
-    size_t room_needed = sb->capacity - (sb->size + size);
-    if(room_needed > 0) {
-        string_builder_grow(sb, room_needed);
+    
+    if (sb->size + size + 1 > sb->capacity) {
+        string_builder_grow(sb, size + 1);
     }
 
-    for (size_t i = 0; i < size; i++)
-    {
-        sb->string[sb->size + i] = to_append[i];
-    }
-    
+    memcpy(sb->string + sb->size, to_append, size);
     sb->size += size;
 }
 

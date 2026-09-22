@@ -60,6 +60,12 @@ test_cases = {
     ],
     "numbers": [
         ["double_number", [1], 2]
+    ],
+    "local_variables": [
+        ["main", [], 200]
+    ],
+    "complex": [
+        ["main", [], 228]
     ]
 }
 

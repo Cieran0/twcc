@@ -56,3 +56,6 @@ dkms.conf
 
 twcc
 *.s
+*.txt
+*.sh
+build/

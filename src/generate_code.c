@@ -5,9 +5,38 @@
 #include "string.h"
 #include "tokenise.h"
 
+typedef struct local_var {
+    const char* name;
+    int stack_offset;
+    char* location;
+} local_var;
+
+typedef struct local_vars {
+    local_var* vars;
+    size_t size;
+    size_t capacity;
+} local_vars;
+
 const char* registers[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
-const char* get_var_register(const char* name, function *f) {
+const char* add_local_var(const char* name, local_vars* vars) {
+    if(vars->capacity == vars->size) return NULL;
+
+    int stack_offset = (vars->size + 1) * 8;
+    local_var var = (local_var) {
+        .name = name,
+        .stack_offset = stack_offset,
+        .location = (char*)malloc(32),
+    };
+
+    snprintf(var.location, 32, "[rbp-%d]", stack_offset);
+
+    vars->vars[vars->size] = var;
+    vars->size++;
+    return var.location;
+}
+
+const char* get_var_location(const char* name, function *f, local_vars* vars) {
     for (size_t i = 0; i < f->argc; i++) {
         if (strcmp(name, f->arguments[i].name) == 0) {
             if( i >= 6 ) 
@@ -17,11 +46,19 @@ const char* get_var_register(const char* name, function *f) {
         }
     }
 
-    //TODO: support more than 6 input variables
-    return "UNKNOWN_VAR";
+    for (size_t i = 0; i < vars->size; i++)
+    {
+        if (strcmp(name, vars->vars[i].name) == 0) {
+            return vars->vars[i].location;
+        }
+    }
+    
+    const char* location = add_local_var(name, vars);
+    assert(location != NULL);
+    return location;
 }
 
-char* generate_asm_from_expression(ast_node* node, function *f) {
+char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars) {
     if (node == NULL) {
         return NULL;
     }
@@ -31,13 +68,13 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
     
     if (type == TOKEN_NAME) {
         string_builder_append(&sb, "\tmov rax, ");
-        string_builder_append(&sb, get_var_register(node->self.content, f));
+        string_builder_append(&sb, get_var_location(node->self.content, f, vars));
         string_builder_append(&sb, "\n");
     } 
     else if (is_binary_operation(type)) {
         
         //Put left hand side in RAX
-        char* left_side = generate_asm_from_expression(node->children[0], f);
+        char* left_side = generate_asm_from_expression(node->children[0], f, vars);
         string_builder_append(&sb, left_side);
         free(left_side);
         
@@ -45,7 +82,7 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         string_builder_append(&sb, "\tpush rax\n");
         
         //Put right hand side in RAX
-        char* right_side = generate_asm_from_expression(node->children[1], f);
+        char* right_side = generate_asm_from_expression(node->children[1], f, vars);
         string_builder_append(&sb, right_side);
         free(right_side);
         
@@ -71,7 +108,7 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
 
         for (int i = argc - 1 ; i >= 0; i--)
         {
-            char* argument_asm = generate_asm_from_expression(node->children[i], f);
+            char* argument_asm = generate_asm_from_expression(node->children[i], f, vars);
             string_builder_append(&sb, argument_asm);
             free(argument_asm);
 
@@ -93,7 +130,21 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         string_builder_append(&sb, "\tmov rax, ");
         string_builder_append(&sb, node->self.content);
         string_builder_append(&sb, "\n");
-    } 
+    } else if (type == TOKEN_TYPE) {
+        //Assign name to location 
+        ast_node* name_node = node->children[0];
+        const char* var_location = get_var_location(name_node->self.content, f, vars);
+        if(node->children_count > 1) {
+            ast_node* equals_node = node->children[1];
+            assert(equals_node->self.type == TOKEN_EQUALS);
+            char* expr_asm = generate_asm_from_expression(equals_node->children[0], f, vars);
+            string_builder_append(&sb, expr_asm);
+            free(expr_asm);
+            string_builder_append(&sb, "\tmov ");
+            string_builder_append(&sb, var_location);
+            string_builder_append(&sb, ", rax\n");
+        }
+    }
     else {
         printf("Encountered unexpected Token of type: %s\n", token_type_names[type]);
         assert(false);
@@ -104,6 +155,8 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
     string_builder_destroy(&sb);
     return string;
 }
+
+
 
 char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol_table st) {
     string_builder sb = string_builder_new(1024);
@@ -118,7 +171,22 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
     // Set up stack frame
     string_builder_append(&sb, "\tpush rbp\n");
     string_builder_append(&sb, "\tmov rbp, rsp\n");
-    
+
+    int local_variable_count = st.size - func.argc;
+    int space_to_reserve = local_variable_count*8;
+
+    string_builder_append(&sb, "\tsub rsp, ");
+    char space_to_reserve_str[256];
+    snprintf(space_to_reserve_str, 256, "%d", space_to_reserve);
+    string_builder_append(&sb, space_to_reserve_str);
+    string_builder_append(&sb, "\n");
+
+    local_vars vars = (local_vars) {
+        .vars = malloc(sizeof(local_var) * local_variable_count),
+        .size = 0,
+        .capacity = local_variable_count
+    };
+
     for (size_t i = 0; i < ast.statements_count; i++)
     {
         ast_node* statement = ast.statements[i];
@@ -126,7 +194,7 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
         if(statement->self.type == TOKEN_RETURN) {
 
             if(statement->children_count > 0) {
-                char* expression_asm = generate_asm_from_expression(statement->children[0], &func);
+                char* expression_asm = generate_asm_from_expression(statement->children[0], &func, &vars);
                 string_builder_append(&sb, expression_asm);
                 free(expression_asm);
             } else {
@@ -134,7 +202,7 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
             }
 
         } else if (statement->self.type == TOKEN_TYPE) {
-            char* expression_asm = generate_asm_from_expression(statement, &func);
+            char* expression_asm = generate_asm_from_expression(statement, &func, &vars);
             string_builder_append(&sb, expression_asm);
             free(expression_asm);
         } else {
@@ -146,7 +214,9 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
     
 
     // Tear down stack frame
-    string_builder_append(&sb, "\tpop rbp\n");
+    string_builder_append(&sb, "\tadd rsp, ");
+    string_builder_append(&sb, space_to_reserve_str);
+    string_builder_append(&sb, "\n\tpop rbp\n");
     string_builder_append(&sb, "\tret\n");
 
     char* function_asm = string_builder_build(&sb);
