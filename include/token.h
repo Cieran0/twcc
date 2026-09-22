@@ -2,8 +2,8 @@
 #include "stdlib.h"
 
 #define TOKEN_LIST \
-    X(TOKEN_TYPE) \
     X(TOKEN_NAME) \
+    X(TOKEN_TYPE) \
     X(TOKEN_OPEN_BRACE) \
     X(TOKEN_CLOSE_BRACE) \
     X(TOKEN_COMMA) \
@@ -14,7 +14,10 @@
     X(TOKEN_MINUS) \
     X(TOKEN_STAR) \
     X(TOKEN_DIV) \
+    X(TOKEN_NUM) \
+    X(TOKEN_EQUALS) \
     X(TOKEN_FUNCTION_CALL) \
+    X(TOKEN_DECLARE) \
     X(TOKEN_SEMI_COLON)
 
 // Generate the Enum

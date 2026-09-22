@@ -40,6 +40,9 @@ ast_node* parse_primary(vector_token* code, size_t* index, size_t end) {
         }
 
         return create_node(current);
+    } else if (current.type == TOKEN_NUM) {
+        (*index)++;
+        return create_node(current);
     }
 
     printf("Encountered Unexpected Type: %s\n", token_type_names[current.type]);
@@ -124,7 +127,6 @@ ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
 }
 
 ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
-    printf("DEBUG parse_statement: index=%zu\n", *index);
     if (*index >= end) return NULL;
 
     token current = code->data[*index];
@@ -140,9 +142,29 @@ ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
             }
         }
         return return_node;
-    } 
-    else if (current.type == TOKEN_NAME) {
-        return parse_expression(code, index, end);
+    }  else if (current.type == TOKEN_TYPE) {
+        //dec variable
+        ast_node* declare_node = create_node(current);
+        (*index)++;
+
+        assert(code->data[*index].type == TOKEN_NAME);
+        add_child(declare_node, create_node(code->data[*index]));
+
+        (*index)++;
+        if (*index < end && code->data[*index].type != TOKEN_SEMI_COLON) {
+            assert(code->data[*index].type == TOKEN_EQUALS);
+
+            ast_node* assignment = create_node(code->data[*index]);
+            (*index)++;
+
+            ast_node* expr = parse_expression(code, index, end);
+            if (expr) {
+                add_child(assignment, expr);
+            }
+            
+            add_child(declare_node, assignment);
+        }
+        return declare_node;
     }
 
     //Fallback
@@ -205,6 +227,24 @@ int analyse_ast_node(ast_node* node, symbol_table* scope) {
         //Check return type matches function return type
     } else if (self.type == TOKEN_PLUS) {
         //Check both are numeric
+    } else if (self.type == TOKEN_TYPE) {
+        if (node->children_count == 0) {
+            printf("Variable declaration without name\n");
+            return 1;
+        }
+        ast_node* child = node->children[0];
+        if(child->self.type != TOKEN_NAME) {
+            printf("Variable declaration without name\n");
+            return 1;
+        }
+
+        symbol* sy = symbol_table_lookup(scope, child->self.content);
+        if(sy != NULL) {
+            printf("Redeclaration of variable %s\n", child->self.content);
+            return 1;
+        }
+
+        symbol_table_add(scope, child->self.content, INT);
     }
 
     int invalid_children = 0;

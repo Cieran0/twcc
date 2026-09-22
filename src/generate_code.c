@@ -89,8 +89,11 @@ char* generate_asm_from_expression(ast_node* node, function *f) {
         string_builder_append(&sb, node->self.content);
         string_builder_append(&sb, "\n");
 
-    }
-    
+    } else if (type == TOKEN_NUM) {
+        string_builder_append(&sb, "\tmov rax, ");
+        string_builder_append(&sb, node->self.content);
+        string_builder_append(&sb, "\n");
+    } 
     else {
         printf("Encountered unexpected Token of type: %s\n", token_type_names[type]);
         assert(false);
@@ -130,6 +133,10 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
                 string_builder_append(&sb, "\txor rax,rax\n");
             }
 
+        } else if (statement->self.type == TOKEN_TYPE) {
+            char* expression_asm = generate_asm_from_expression(statement, &func);
+            string_builder_append(&sb, expression_asm);
+            free(expression_asm);
         } else {
             //TODO: handle different types here
             printf("generate_asm_from_function failed due to not being TOKEN_RETURN");

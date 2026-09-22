@@ -5,7 +5,7 @@
 #include "string.h"
 
 int is_special_char(char c) {
-    const char special_chars[] = "(){},;+*-/";
+    const char special_chars[] = "(){},;+*-/=";
     const size_t len = sizeof(special_chars) - 1;
     for (size_t i = 0; i < len; i++)
     {
@@ -67,39 +67,56 @@ pta pre_tokenise(char* file) {
     return preta;
 }
 
+bool is_digit(char c) {
+    return !(c < '0' || c > '9');
+}
+
+static const token_type char_to_token[256] = {
+    ['('] = TOKEN_OPEN_BRACE,
+    [')'] = TOKEN_CLOSE_BRACE,
+    [','] = TOKEN_COMMA,
+    ['{'] = TOKEN_OPEN_CURLY_BRACE,
+    ['}'] = TOKEN_CLOSE_CURLY_BRACE,
+    ['+'] = TOKEN_PLUS,
+    [';'] = TOKEN_SEMI_COLON,
+    ['*'] = TOKEN_STAR,
+    ['-'] = TOKEN_MINUS,
+    ['/'] = TOKEN_DIV,
+    ['='] = TOKEN_EQUALS,
+};
+
 token tokenise_char(char c) {
-    switch (c)
-    {
-    case '(':
-        return (token) {TOKEN_OPEN_BRACE, NULL};
-    case ')':
-        return (token) {TOKEN_CLOSE_BRACE, NULL};
-    case ',':
-        return (token) {TOKEN_COMMA, NULL};
-    case '{':
-        return (token) {TOKEN_OPEN_CURLY_BRACE, NULL};
-    case '}':
-        return (token) {TOKEN_CLOSE_CURLY_BRACE, NULL};
-    case '+':
-        return (token) {TOKEN_PLUS, NULL};
-    case ';':
-        return (token) {TOKEN_SEMI_COLON, NULL};
-    case '*':
-        return (token) {TOKEN_STAR, NULL};
-    case '-':
-        return (token) {TOKEN_MINUS, NULL};
-    case '/':
-        return (token) {TOKEN_DIV, NULL};
+    unsigned char uc = (unsigned char)c;
+    token_type type;
+    
+    if (char_to_token[uc] != 0) {
+        type = char_to_token[uc];
+    }
+    else if (is_digit(c)) {
+        type = TOKEN_NUM;
+    }
+    else {
+        type = TOKEN_NAME;
     }
 
     char* content = malloc(2);
     content[0] = c;
-    content[1] = 0;
+    content[1] = '\0';
 
-    return (token){
-        TOKEN_NAME,
-        content
-    };
+    return (token){type, content};
+}
+
+bool is_number(const char* string, size_t len) {
+    if (!(string[0] == '-' || is_digit(string[0]))) {
+        return false;
+    }
+
+    for (size_t i = 1; i < len; i++)
+    {
+        if(!is_digit(string[i])) return false;
+    }
+
+    return true;
 }
 
 token tokenise(const char* string) {
@@ -117,6 +134,8 @@ token tokenise(const char* string) {
         type = TOKEN_TYPE;
     } else if (strcmp("return", string) == 0) {
         type = TOKEN_RETURN;
+    } else if (is_number(string, len)) {
+        type = TOKEN_NUM;
     }
 
     return (token){

@@ -57,6 +57,9 @@ test_cases = {
         ["add_and_double", [10,62], 72*2],
         ["add_and_double", [2435,564552], (2435+564552)*2],
         ["add_and_double", [1213,21232], (1213+21232)*2],
+    ],
+    "numbers": [
+        ["double_number", [1], 2]
     ]
 }
 
