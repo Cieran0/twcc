@@ -32,27 +32,33 @@ token token_clone(token t) {
     return cloned;
 }
 
-
 pta pre_tokenise(char* file) {
     pta preta = new_pre_token_arena(1024);
     char name_buffer[1024] = {0};
     int buffer_index = 0;
 
+    #define add_string_to_preta() \
+            preta.add_string(&preta, name_buffer, buffer_index); \
+            memset(name_buffer, 0, buffer_index+1); \
+            buffer_index = 0;
+
     char c;
     while ((c = *(file++)) != 0 && buffer_index < sizeof(name_buffer))
     {
+        //TODO: handle string literals
         if (c == ' ' || c == '\n' || c == '\t') {
             if(name_buffer[0] == 0) continue;
-            preta.add_string(&preta, name_buffer, buffer_index);
-            memset(name_buffer, 0, buffer_index+1);
-            buffer_index = 0;
+            add_string_to_preta();
+        } else if (c == '/' && *(file) == '/') {
+            if(name_buffer[0] != 0) {
+                add_string_to_preta();
+            }
+            while ((c = (*file++)) != '\0' && c != '\n');
         } else if (is_special_char(c)) {
             if(name_buffer[0] != 0) {
-                preta.add_string(&preta, name_buffer, buffer_index);
-                memset(name_buffer, 0, buffer_index+1);
+                add_string_to_preta();
             }
             preta.add_string(&preta, &c, 1);
-            buffer_index = 0;
         } else {
             name_buffer[buffer_index] = c;
             buffer_index++;
@@ -65,7 +71,9 @@ pta pre_tokenise(char* file) {
     }
     
     return preta;
+
 }
+#undef add_string_to_preta
 
 bool is_digit(char c) {
     return !(c < '0' || c > '9');
