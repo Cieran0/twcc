@@ -41,7 +41,6 @@ pta pre_tokenise(char* file) {
             preta.add_string(&preta, name_buffer, buffer_index); \
             memset(name_buffer, 0, buffer_index+1); \
             buffer_index = 0;
-
     char c;
     while ((c = *(file++)) != 0 && buffer_index < sizeof(name_buffer))
     {
@@ -49,11 +48,29 @@ pta pre_tokenise(char* file) {
         if (c == ' ' || c == '\n' || c == '\t') {
             if(name_buffer[0] == 0) continue;
             add_string_to_preta();
-        } else if (c == '/' && *(file) == '/') {
-            if(name_buffer[0] != 0) {
-                add_string_to_preta();
+        } else if (c == '/') {
+            if(*(file) == '/') {
+                if(name_buffer[0] != 0) {
+                    add_string_to_preta();
+                }
+                while ((c = (*file++)) != '\0' && c != '\n');
+            } else if (*(file) == '*') {
+                if(name_buffer[0] != 0) {
+                    add_string_to_preta();
+                }
+                while (*file != '\0') {
+                    if (*file == '*' && *(file+1) == '/') {
+                        file += 2;
+                        break;
+                    }
+                file++;
+                }
+            } else {
+                if(name_buffer[0] != 0) {
+                    add_string_to_preta();
+                }
+                preta.add_string(&preta, &c, 1);
             }
-            while ((c = (*file++)) != '\0' && c != '\n');
         } else if (is_special_char(c)) {
             if(name_buffer[0] != 0) {
                 add_string_to_preta();
