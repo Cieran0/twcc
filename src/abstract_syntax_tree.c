@@ -165,6 +165,9 @@ ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
             add_child(declare_node, assignment);
         }
         return declare_node;
+    } else if (current.type == TOKEN_NAME) {
+        ast_node* expr = parse_expression(code, index, end);
+        return expr;
     }
 
     //Fallback
@@ -206,7 +209,7 @@ abstract_syntax_tree parse_ast(function* f) {
 }
 
 int analyse_ast_node(ast_node* node, symbol_table* scope) {
-    if(node == NULL) return 1;
+    if(node == NULL) return 0;
     
     token self = node->self;
     if(self.type == TOKEN_NAME) {

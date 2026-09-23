@@ -159,6 +159,10 @@ char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars
 
 
 char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol_table st) {
+    if(func.code.size == 0) {
+        return NULL;
+    }
+
     string_builder sb = string_builder_new(1024);
 
     //Add function label
@@ -174,12 +178,15 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
 
     int local_variable_count = st.size - func.argc;
     int space_to_reserve = local_variable_count*8;
+    char space_to_reserve_str[32];
 
-    string_builder_append(&sb, "\tsub rsp, ");
-    char space_to_reserve_str[256];
-    snprintf(space_to_reserve_str, 256, "%d", space_to_reserve);
-    string_builder_append(&sb, space_to_reserve_str);
-    string_builder_append(&sb, "\n");
+    if( local_variable_count > 0 ) {
+        string_builder_append(&sb, "\tsub rsp, ");
+        snprintf(space_to_reserve_str, 256, "%d", space_to_reserve);
+        string_builder_append(&sb, space_to_reserve_str);
+        string_builder_append(&sb, "\n");
+    } 
+
 
     local_vars vars = (local_vars) {
         .vars = malloc(sizeof(local_var) * local_variable_count),
@@ -201,22 +208,22 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
                 string_builder_append(&sb, "\txor rax,rax\n");
             }
 
-        } else if (statement->self.type == TOKEN_TYPE) {
+        } else {
             char* expression_asm = generate_asm_from_expression(statement, &func, &vars);
             string_builder_append(&sb, expression_asm);
             free(expression_asm);
-        } else {
-            //TODO: handle different types here
-            printf("generate_asm_from_function failed due to not being TOKEN_RETURN");
-            assert(false);
-        }
+        } 
     }
     
 
     // Tear down stack frame
-    string_builder_append(&sb, "\tadd rsp, ");
-    string_builder_append(&sb, space_to_reserve_str);
-    string_builder_append(&sb, "\n\tpop rbp\n");
+    if( local_variable_count > 0 ) {
+        string_builder_append(&sb, "\tadd rsp, ");
+        string_builder_append(&sb, space_to_reserve_str);
+        string_builder_append(&sb, "\n");
+    }
+     
+    string_builder_append(&sb, "\tpop rbp\n");
     string_builder_append(&sb, "\tret\n");
 
     char* function_asm = string_builder_build(&sb);

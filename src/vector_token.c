@@ -51,7 +51,8 @@ void vector_token_pop(vector_token* this) {
 
 
 vector_token vector_token_new(size_t capacity) {
-    token* data = (token*)malloc(sizeof(token) * capacity);
+    token* data = NULL;
+    if(capacity > 0) data = (token*)malloc(sizeof(token) * capacity);
     return (vector_token) {
         data,
         0,

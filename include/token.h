@@ -2,6 +2,7 @@
 #include "stdlib.h"
 
 #define TOKEN_LIST \
+    X(TOKEN_ERROR) \
     X(TOKEN_NAME) \
     X(TOKEN_TYPE) \
     X(TOKEN_OPEN_BRACE) \

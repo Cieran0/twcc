@@ -1,27 +1,34 @@
 #include "function.h"
 #include "tokenise.h"
 #include "string_builder.h"
+#include "stdbool.h"
+#include "stdio.h"
 
 function* extract_function(vector_token* tokens) {
+
+    if(tokens->size <= 4) return NULL;
 
     size_t signature_index = 0;
     size_t argument_start = 0;
     size_t argument_end = 0;
     size_t code_start = 0;
     size_t code_end = 0;
-    int found = 0;
+    bool found = false;
 
     for (size_t i = 0; i < tokens->size -2; i++)
     {
         if(tokens->data[i].type != TOKEN_TYPE) continue;
         if(tokens->data[i+1].type != TOKEN_NAME) continue;
         if(tokens->data[i+2].type != TOKEN_OPEN_BRACE) continue;
-        found = 1;
+        found = true;
         signature_index = i;
         break;
     }
 
-    if(!found) return NULL;
+    if(!found) {
+        printf("No signature found\n");
+        return NULL;
+    }
     argument_start = signature_index+2;
     
     for (size_t i = argument_start+1; i < tokens->size; i++)
@@ -33,13 +40,29 @@ function* extract_function(vector_token* tokens) {
             break;
         }
     }
-    
-    if(!found) return NULL;
-    code_start = argument_end + 1;
-    if(code_start >= tokens->size || tokens->data[code_start].type != TOKEN_OPEN_CURLY_BRACE)
+
+
+    if(!found) {
+        printf("Arguments malformed\n");
         return NULL;
+    }
+    code_start = argument_end + 1;
+
+    bool is_definition = false;
+
+    if(code_start >= tokens->size || tokens->data[code_start].type != TOKEN_OPEN_CURLY_BRACE) {
+        if(tokens->data[code_start].type != TOKEN_SEMI_COLON) {
+            return NULL;
+        }
+        is_definition = true;
+        code_end = code_start;
+    }
 
     size_t open_counter = 0;
+    if(is_definition) {
+        goto skip_getting_code;
+    }
+
     for (size_t i = code_start + 1; i < tokens->size; i++)
     {
         found = 0;
@@ -62,6 +85,7 @@ function* extract_function(vector_token* tokens) {
         return NULL;
     }
     
+skip_getting_code:
 
     name_type_pair function_signature = {
         type_from_type_token(tokens->data[signature_index]),
@@ -109,14 +133,18 @@ function* extract_function(vector_token* tokens) {
         }
         
     }
-
-    vector_token code = vector_token_new((code_end-code_start)+1);
+    vector_token code = vector_token_new(0);
+    if(is_definition) {
+        goto return_function;
+    }
+    code = vector_token_new((code_end-code_start)+1);
 
     for (size_t i = code_start+1; i < code_end; i++)
     {
         vector_token_push(&code, token_clone(tokens->data[i]));
     }
     
+return_function:
     function* f = (function*)malloc(sizeof(function));
 
     *f = (function) {
