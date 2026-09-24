@@ -4,7 +4,34 @@
 #include "string.h"
 #include "stdio.h"
 
-char* pre_process(const char* file) {
+char* load_file_with_include_paths(const char* filename, const char** includes, size_t includes_len) {
+    if(filename == NULL) return NULL;
+    
+    char* file = load_file(filename);
+    if(file != NULL) {
+        return file;
+    }
+
+    for (size_t i = 0; i < includes_len; i++)
+    {
+        string_builder sb = string_builder_new(32);
+        string_builder_append(&sb, includes[i]);
+        string_builder_append(&sb, "/");
+        string_builder_append(&sb, filename);
+        char* path = string_builder_build(&sb);
+        file = load_file(path);
+        string_builder_destroy(&sb);
+        if (file != NULL) {
+            free(path);
+            return file;
+        }
+    }
+    
+
+    return NULL;
+}
+
+char* pre_process(const char* file, const char** includes, size_t includes_len) {
     char* pre_processed = clone_str(file);
     size_t index = 0;
     char c;
@@ -78,7 +105,7 @@ char* pre_process(const char* file) {
         include_name[include_name_size - 1] = '\0';
         printf("Include name: %s\n", include_name);
 
-        char* included_file = load_file(include_name);
+        char* included_file = load_file_with_include_paths(include_name, includes, includes_len);
         free(include_name);
         
         if(included_file == NULL) {
@@ -86,7 +113,7 @@ char* pre_process(const char* file) {
             return NULL;
         }
         
-        char* pre_processed_include = pre_process(included_file);
+        char* pre_processed_include = pre_process(included_file, includes, includes_len);
         free(included_file);
         
         if (pre_processed_include == NULL) {

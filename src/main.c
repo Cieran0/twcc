@@ -119,7 +119,7 @@ int main(int argc, const char** argv) {
     }
     printf("%s\n", file);
 
-    char* pre_processed_file = pre_process(file);
+    char* pre_processed_file = pre_process(file, args.includes, args.includes_size);
     free(file);
 
     if(pre_processed_file == NULL) {
