@@ -81,6 +81,7 @@ def test_program(program_name):
         [
             "./twcc",
             source_file,
+            "-o",
             assembly_file
         ],
         stdout=subprocess.DEVNULL

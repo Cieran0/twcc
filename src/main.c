@@ -2,6 +2,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "stdbool.h"
+#include "assert.h"
 
 #include "pre_token_arena.h"
 #include "token.h"
@@ -14,48 +15,119 @@
 #include "function.h"
 #include "string_builder.h"
 #include "generate_code.h"
+#include "pre_process.h"
 
-#include "assert.h"
 
-enum error_no {
+typedef enum error_no {
     SUCCESS = 0,
     NO_INPUT_FILE,
     INVALID_INPUT_FILE,
-};
+    MALFORMED_FLAG,
+} error_no;
 
+typedef struct arguments {
+    const char** inputs;
+    size_t inputs_size;
+    const char* output;
+    const char** includes;
+    size_t includes_size;
+    error_no err;
+} arguments;
+
+arguments parse_args(int argc, const char** argv) {
+
+    arguments a = (arguments) {
+        .inputs = malloc(sizeof(const char*) * argc),
+        .inputs_size = 0,
+        .output = NULL,
+        .includes = malloc(sizeof(const char*) * argc),
+        .includes_size = 0,
+        .err = SUCCESS
+    };
+
+    for (size_t i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "-o") == 0)
+        {
+            if(a.output != NULL) {
+                printf("Flag '-o' is duplicated\n");
+                a.err = MALFORMED_FLAG;
+                return a;
+            }
+
+            if(i+1 >= argc) {
+                printf("Flag '-o' expects filename aftewards\n");
+                a.err = MALFORMED_FLAG;
+                return a;
+            }
+            a.output = argv[i+1];
+            i++;
+            continue;
+        }
+
+        if (strncmp(argv[i], "-I", 2) == 0) {
+            if(strlen(argv[i]) == 2) {
+                if(i+1 >= argc) {
+                    printf("Flag '-I' expects directory aftewards\n");
+                    a.err = MALFORMED_FLAG;
+                    return a;
+                }
+                a.includes[a.includes_size] = argv[i+1];
+                a.includes_size++;
+                i++;
+                continue;
+            }
+
+            const char* directory = argv[i]+2;
+            a.includes[a.includes_size] = directory;
+            a.includes_size++;
+        }
+        
+        a.inputs[a.inputs_size] = argv[i];
+        a.inputs_size++; 
+    }
+    return a;
+}
 
 int main(int argc, const char** argv) {
 
-    if(argc < 2) {
+    arguments args = parse_args(argc, argv);
+
+    if(args.err != SUCCESS) {
+        free(args.includes);
+        free(args.inputs);
+        return args.err;
+    }
+
+    if(args.inputs_size == 0) {
+        free(args.includes);
+        free(args.inputs);
         printf("No Input Given!\n");
         return NO_INPUT_FILE;
     }
 
-    const char* output_name = "out.s";
-    if (argc >= 3)
-    {
-        output_name = argv[2];
+    if(args.output == NULL) {
+        args.output = "out.s";
     }
 
-    char* file = load_file(argv[1]);
+    char* file = load_file(args.inputs[0]);
     if(!file) {
-        printf("Invalid Input File: %s\n", argv[1]);
+        printf("Invalid Input File: %s\n", args.inputs[0]);
+        free(args.includes);
+        free(args.inputs);
         return INVALID_INPUT_FILE;
     }
     printf("%s\n", file);
 
-    vector_token tokens = tokenise_string(file);
-
+    char* pre_processed_file = pre_process(file);
     free(file);
 
-    // for (size_t i = 0; i < tokens.size; i++)
-    // {
-    //     printf("%s", token_type_names[tokens.data[i].type]);
-    //     if (tokens.data[i].content != NULL) {
-    //         printf(": %s", tokens.data[i].content);
-    //     }
-    //     printf("\n");
-    // }
+    if(pre_processed_file == NULL) {
+        return INVALID_INPUT_FILE;
+    }
+
+    vector_token tokens = tokenise_string(pre_processed_file);
+    free(pre_processed_file);
 
     function* func_ptr = extract_function(&tokens);
     string_builder sb = string_builder_new(1024);
@@ -131,15 +203,19 @@ int main(int argc, const char** argv) {
 
     if(func_count == 0) {
         printf("No functions found!\n");
+        free(args.includes);
+        free(args.inputs);
         return INVALID_INPUT_FILE;
     }
 
     char* generated_code = string_builder_build(&sb);
 
-    write_to_file(output_name, generated_code);
+    write_to_file(args.output, generated_code);
 
     free(generated_code);
     string_builder_destroy(&sb);
 
+    free(args.includes);
+    free(args.inputs);
     return SUCCESS;
 }
