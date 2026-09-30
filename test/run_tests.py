@@ -66,6 +66,9 @@ test_cases = {
     ],
     "complex": [
         ["main", [], 228]
+    ],
+    "reasignment": [
+        ["six", [], 6]
     ]
 }
 

@@ -199,6 +199,7 @@ const bool is_binary_operation(token_type type) {
     case TOKEN_MINUS:
     case TOKEN_STAR:
     case TOKEN_DIV:
+    case TOKEN_EQUALS:
         return true;
     
     default:

@@ -70,7 +70,17 @@ char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars
         string_builder_append(&sb, "\tmov rax, ");
         string_builder_append(&sb, get_var_location(node->self.content, f, vars));
         string_builder_append(&sb, "\n");
-    } 
+    } else if (type == TOKEN_EQUALS) {
+        assert(node->children_count == 2);
+        char* right_side = generate_asm_from_expression(node->children[1], f, vars);
+        string_builder_append(&sb, right_side);
+        free(right_side);
+        //Right side now on rax
+        const char* location = get_var_location(node->children[0]->self.content, f ,vars);
+        string_builder_append(&sb, "\tmov ");
+        string_builder_append(&sb, location);
+        string_builder_append(&sb, ", rax\n");
+    }
     else if (is_binary_operation(type)) {
         
         //Put left hand side in RAX
