@@ -144,6 +144,18 @@ bool is_number(const char* string, size_t len) {
     return true;
 }
 
+bool is_type_token(const char* string) {
+    const char* types[] = {"int", "void"};
+    const size_t size = sizeof(types)/sizeof(types[0]);
+    for (size_t i = 0; i < size; i++)
+    {
+        if(strcmp(string, types[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 token tokenise(const char* string) {
     size_t len = strlen(string);
     if(len == 1) {
@@ -155,7 +167,7 @@ token tokenise(const char* string) {
 
     size_t type = TOKEN_NAME;
 
-    if(strcmp("int", string) == 0) {
+    if(is_type_token(string)) {
         type = TOKEN_TYPE;
     } else if (strcmp("return", string) == 0) {
         type = TOKEN_RETURN;
@@ -188,8 +200,13 @@ vector_token tokenise_string(char* file) {
 }
 
 builtin_type type_from_type_token(token t) {
-    //TODO: actually implement this
-    return INT;
+    if(strcmp(t.content, "int") == 0) {
+        return INT;
+    } else if (strcmp(t.content, "void") == 0 ) {
+        return VOID;
+    }
+
+    return INVALID;
 }
 
 const bool is_binary_operation(token_type type) {

@@ -215,7 +215,7 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
                 string_builder_append(&sb, expression_asm);
                 free(expression_asm);
             } else {
-                string_builder_append(&sb, "\txor rax,rax\n");
+                string_builder_append(&sb, "\txor rax, rax\n");
             }
 
         } else {

@@ -69,6 +69,12 @@ test_cases = {
     ],
     "reasignment": [
         ["six", [], 6]
+    ],
+    "void" : [
+        ["main", [], 0]
+    ],
+    "invalid_void": [
+        False
     ]
 }
 
@@ -77,8 +83,6 @@ def test_program(program_name):
     source_file = f"examples/{program_name}.c"
     assembly_file = f"testing/{program_name}.s"
     shared_file = f"testing/{program_name}.so"
-
-    print(f"Compiling {source_file}...")
 
     result = subprocess.run(
         [
@@ -91,12 +95,12 @@ def test_program(program_name):
     )
 
     if result.returncode != 0:
-        print("Compilation failed")
+        if len(test_cases[program_name]) == 1 and test_cases[program_name][0] == False:
+            print(f"PASS: {program_name} didn't compile!")
+        else:
+            print("Compilation failed")
         return
 
-    print("Compilation succeeded")
-
-    print(f"Building {shared_file}...")
 
     result = subprocess.run(
         [
@@ -113,7 +117,6 @@ def test_program(program_name):
         print("Shared library build failed")
         return
 
-    print("Shared library built")
 
     try:
         lib = CDLL(os.path.abspath(shared_file))
@@ -121,7 +124,6 @@ def test_program(program_name):
         print(f"Failed to load shared library: {e}")
         return
 
-    print(f"Loaded {shared_file}")
 
     for function_name, args, expected in test_cases[program_name]:
 

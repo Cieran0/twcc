@@ -6,6 +6,8 @@
 #include "stdbool.h"
 #include "assert.h"
 
+#include "string.h"
+
 ast_node* create_node(token t) {
     ast_node* node = (ast_node*)malloc(sizeof(ast_node));
     node->self = token_clone(t);
@@ -231,6 +233,11 @@ int analyse_ast_node(ast_node* node, symbol_table* scope) {
     } else if (self.type == TOKEN_PLUS) {
         //Check both are numeric
     } else if (self.type == TOKEN_TYPE) {
+        if (strcmp(self.content, "void") == 0) {
+            printf("Incomplete type void not allowed in variable decloration\n");
+            return 1;
+        }
+
         if (node->children_count == 0) {
             printf("Variable declaration without name\n");
             return 1;

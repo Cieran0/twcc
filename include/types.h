@@ -1,6 +1,7 @@
 #pragma once
 
 typedef enum builtin_type {
+    INVALID,
     INT, 
-    INVALID
+    VOID,
 } builtin_type;
