@@ -16,6 +16,7 @@
 #include "string_builder.h"
 #include "generate_code.h"
 #include "pre_process.h"
+#include "string_hash.h"
 
 
 typedef enum error_no {
@@ -89,6 +90,62 @@ arguments parse_args(int argc, const char** argv) {
     return a;
 }
 
+
+char un_escape_char(char c) {
+    
+    switch (c)
+    {
+    case '\a': 
+        return 'a'; 
+    case '\b': 
+        return 'b'; 
+    case '\f': 
+        return 'f'; 
+    case '\n': 
+        return 'n'; 
+    case '\r': 
+        return 'r'; 
+    case '\t': 
+        return 't'; 
+    case '\v': 
+        return 'v'; 
+    case '\"': 
+        return '\"'; 
+    case '\'': 
+        return '\''; 
+    case '\?': 
+        return '\?'; 
+    case '\\':
+        return '\\';
+    
+    default:
+        break;
+    }
+    return 0;
+}
+
+char* un_escape_string(const char* string) {
+
+    size_t len = strlen(string);
+    char* new = malloc(len*2);
+    size_t j = 0;
+    for (size_t i = 0; i < len; i++)
+    {
+        char c = string[i];
+        char un_e_c = un_escape_char(c);
+        if(un_e_c == 0) {
+            new[j] = string[i];
+            j++;
+        } else {
+            new[j] = '\\';
+            new[j+1] = un_e_c;
+            j+=2;
+        }
+    }
+    new[j] = 0;
+    return new;
+}
+
 int main(int argc, const char** argv) {
 
     arguments args = parse_args(argc, argv);
@@ -131,7 +188,7 @@ int main(int argc, const char** argv) {
 
     function* func_ptr = extract_function(&tokens);
     string_builder sb = string_builder_new(1024);
-    string_builder_append(&sb, ".intel_syntax noprefix\n");
+    string_builder_append(&sb, ".intel_syntax noprefix\n\n.section .text\n\n");
 
     symbol_table global = symbol_table_new(128, NULL);
 
@@ -208,9 +265,31 @@ int main(int argc, const char** argv) {
         return INVALID_INPUT_FILE;
     }
 
+    string_builder_append(&sb, "\n.section .rodata\n\n");
+    size_t id = 1;
+    char* content;
+    while ((content = content_of_id(id)) != NULL)
+    {
+        string_builder_append(&sb, ".LC");
+        char buff[32];
+        snprintf(buff, 32, "%zu", id);
+        string_builder_append(&sb, buff);
+        string_builder_append(&sb, ":\n\t.string \"");
+        char* unescaped_content = un_escape_string(content);
+        string_builder_append(&sb, unescaped_content);
+        string_builder_append(&sb, "\"\n\n");
+        free(unescaped_content);
+        id++;
+    }
+    
+    
+
     char* generated_code = string_builder_build(&sb);
 
     write_to_file(args.output, generated_code);
+    printf("----------------ASM------------------\n");
+    printf("%s", generated_code);
+    printf("----------------ASM------------------\n");
 
     free(generated_code);
     string_builder_destroy(&sb);

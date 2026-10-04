@@ -45,6 +45,9 @@ ast_node* parse_primary(vector_token* code, size_t* index, size_t end) {
     } else if (current.type == TOKEN_NUM) {
         (*index)++;
         return create_node(current);
+    } else if (current.type == TOKEN_STRING_LITERAL) {
+        (*index)++;
+        return create_node(current);
     }
 
     printf("Encountered Unexpected Type: %s\n", token_type_names[current.type]);

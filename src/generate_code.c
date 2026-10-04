@@ -4,6 +4,7 @@
 #include "stdbool.h"
 #include "string.h"
 #include "tokenise.h"
+#include "string_hash.h"
 
 typedef struct local_var {
     const char* name;
@@ -80,6 +81,13 @@ char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars
         string_builder_append(&sb, "\tmov ");
         string_builder_append(&sb, location);
         string_builder_append(&sb, ", rax\n");
+    } else if (type == TOKEN_STRING_LITERAL) {
+        size_t id = get_string_id(node->self.content);
+        string_builder_append(&sb, "\tlea rax, [rip + .LC");
+        char buff[32];
+        snprintf(buff, 32, "%zu", id);
+        string_builder_append(&sb, buff);
+        string_builder_append(&sb, "]\n");
     }
     else if (is_binary_operation(type)) {
         

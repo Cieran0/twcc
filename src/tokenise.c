@@ -3,6 +3,7 @@
 #include "pre_token_arena.h"
 #include "stdio.h"
 #include "string.h"
+#include "assert.h"
 
 int is_special_char(char c) {
     const char special_chars[] = "(){},;+*-/=";
@@ -76,7 +77,26 @@ pta pre_tokenise(char* file) {
                 add_string_to_preta();
             }
             preta.add_string(&preta, &c, 1);
-        } else {
+        } else if (c == '"') {
+            if(name_buffer[0] != 0) {
+                add_string_to_preta();
+            }
+            
+            do 
+            {
+                if(c == '\n' || c == 0) {
+                    assert("Missing closing \"" && false);
+                }
+                name_buffer[buffer_index] = c;
+                buffer_index++;
+                c = *(file++);
+            } while (c != '"');
+            name_buffer[buffer_index] = c;
+            buffer_index++;
+
+            add_string_to_preta();
+        }
+        else {
             name_buffer[buffer_index] = c;
             buffer_index++;
         }
@@ -156,6 +176,53 @@ bool is_type_token(const char* string) {
     return false;
 }
 
+char escape(char c)
+{
+    switch (c)
+    {
+        case 'a':
+            return '\a';
+
+        case 'b':
+            return '\b';
+
+        case 'f':
+            return '\f';
+
+        case 'n':
+            return '\n';
+
+        case 'r':
+            return '\r';
+
+        case 't':
+            return '\t';
+
+        case 'v':
+            return '\v';
+    }
+    return c;
+}
+
+void expand_string_literal(char* dst, const char* src, size_t len) {
+    size_t j = 0;
+    for (size_t i = 0; i < len; i++)
+    {
+        if(src[i] == '"') { continue; }
+        else if (src[i] == '\\' && i+1 < len) {
+            char c = src[i+1];
+            dst[j] = escape(c);
+            j++;
+            i++;
+        } else {
+            dst[j] = src[i];
+            j++;
+        }
+    }
+    
+    dst[j] = 0;
+}
+
 token tokenise(const char* string) {
     size_t len = strlen(string);
     if(len == 1) {
@@ -173,6 +240,9 @@ token tokenise(const char* string) {
         type = TOKEN_RETURN;
     } else if (is_number(string, len)) {
         type = TOKEN_NUM;
+    } else if (content[0] == '"' && content[len-1] == '"') {
+        type = TOKEN_STRING_LITERAL;
+        expand_string_literal(content, string, len);
     }
 
     return (token){
