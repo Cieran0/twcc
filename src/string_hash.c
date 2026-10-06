@@ -19,7 +19,7 @@ void intialise_string_map() {
         };
     }
     reverse_map_size = 256;
-    reverse_map = malloc(reverse_map_size);
+    reverse_map = malloc(reverse_map_size * sizeof(char*));
     intialised = true;
 }
 
@@ -38,7 +38,7 @@ static uint8_t hash_string(const char *str)
 void reverse_map_grow() {
     if(last_id >= reverse_map_size) {
         reverse_map_size*=2;
-        reverse_map = realloc(reverse_map, reverse_map_size);
+        reverse_map = realloc(reverse_map, reverse_map_size * sizeof(char*));
     }
 }
 

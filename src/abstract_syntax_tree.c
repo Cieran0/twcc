@@ -8,6 +8,23 @@
 
 #include "string.h"
 
+int get_operator_precedence(token_type type) {
+    switch (type)
+    {
+    case TOKEN_EQUALS:
+        return 1;
+    case TOKEN_PLUS:
+    case TOKEN_MINUS:
+        return 2;
+    case TOKEN_STAR:
+    case TOKEN_DIV:
+        return 3;
+    
+    default:
+        return 0;
+    }
+}
+
 ast_node* create_node(token t) {
     ast_node* node = (ast_node*)malloc(sizeof(ast_node));
     node->self = token_clone(t);
@@ -81,7 +98,7 @@ void print_ast(abstract_syntax_tree* ast) {
     }
 }
 
-ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
+ast_node* parse_expression(vector_token* code, size_t* index, size_t end, int min_precedence) {
     
     ast_node* left = parse_primary(code, index, end);
     if (!left) {
@@ -103,29 +120,34 @@ ast_node* parse_expression(vector_token* code, size_t* index, size_t end) {
                 (*index)++;
                 continue;
             }
-            ast_node* child = parse_expression(code, index, end);
+            ast_node* child = parse_expression(code, index, end, 1);
             add_child(left, child);
         }
     }
 
     while (*index < end) {
         token op = code->data[*index];
+        int precedence = get_operator_precedence(op.type);
 
-        if (is_binary_operation(op.type)) {
-            (*index)++;
-
-            ast_node* right = parse_expression(code, index, end);
-            if (!right) break;
-
-            ast_node* bin_op = create_node(op);
-            add_child(bin_op, left);
-            add_child(bin_op, right);
-
-            left = bin_op;
-        } else {
-            //Left is a primary?
-            break;
+        if (precedence == 0 || precedence < min_precedence) {
+            break; //Left is no bin op
         }
+
+    
+        (*index)++;
+        int next_min_prec = (op.type == TOKEN_EQUALS) ? precedence : precedence + 1;
+
+        ast_node* right = parse_expression(code, index, end, next_min_prec);
+        if (!right) { 
+            printf("Error: Expected expression after operator %s\n", token_type_names[op.type]);
+            break; 
+        }
+
+        ast_node* bin_op = create_node(op);
+        add_child(bin_op, left);
+        add_child(bin_op, right);
+        left = bin_op;
+        
     }
 
     return left;
@@ -141,7 +163,7 @@ ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
         (*index)++;
 
         if (*index < end && code->data[*index].type != TOKEN_SEMI_COLON) {
-            ast_node* expr = parse_expression(code, index, end);
+            ast_node* expr = parse_expression(code, index, end, 1);
             if (expr) {
                 add_child(return_node, expr);
             }
@@ -162,7 +184,7 @@ ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
             ast_node* assignment = create_node(code->data[*index]);
             (*index)++;
 
-            ast_node* expr = parse_expression(code, index, end);
+            ast_node* expr = parse_expression(code, index, end, 1);
             if (expr) {
                 add_child(assignment, expr);
             }
@@ -171,7 +193,7 @@ ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
         }
         return declare_node;
     } else if (current.type == TOKEN_NAME) {
-        ast_node* expr = parse_expression(code, index, end);
+        ast_node* expr = parse_expression(code, index, end, 1);
         return expr;
     }
 

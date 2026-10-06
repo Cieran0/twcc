@@ -75,6 +75,9 @@ test_cases = {
     ],
     "invalid_void": [
         False
+    ],
+    "operator_precedence": [
+        ["main", [], 7]
     ]
 }
 

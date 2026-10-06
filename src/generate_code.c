@@ -124,6 +124,11 @@ char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars
     } else if (type == TOKEN_FUNCTION_CALL) {
         size_t argc = node->children_count;
 
+        if(argc > 6) {
+            printf("Error: Functions with more than 6 arguments are not yet supported.\n");
+            assert(false);
+        }
+
         for (int i = argc - 1 ; i >= 0; i--)
         {
             char* argument_asm = generate_asm_from_expression(node->children[i], f, vars);

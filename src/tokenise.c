@@ -229,7 +229,7 @@ token tokenise(const char* string) {
         return tokenise_char(string[0]);
     }
 
-    char* content = malloc(len);
+    char* content = malloc(len + 1);
     memcpy(content, string, len + 1);
 
     size_t type = TOKEN_NAME;
