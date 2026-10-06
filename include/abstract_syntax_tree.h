@@ -19,3 +19,4 @@ typedef struct abstract_syntax_tree {
 abstract_syntax_tree parse_ast(function* f);
 int analyse_ast_node(ast_node* node, symbol_table* scope);
 void print_ast(abstract_syntax_tree* ast);
+ast_node* parse_statement(vector_token* code, size_t* index, size_t end);

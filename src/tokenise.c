@@ -238,6 +238,8 @@ token tokenise(const char* string) {
         type = TOKEN_TYPE;
     } else if (strcmp("return", string) == 0) {
         type = TOKEN_RETURN;
+    } else if (strcmp("if", string) == 0) {
+        type = TOKEN_IF;
     } else if (is_number(string, len)) {
         type = TOKEN_NUM;
     } else if (content[0] == '"' && content[len-1] == '"') {

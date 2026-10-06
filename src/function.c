@@ -63,22 +63,21 @@ function* extract_function(vector_token* tokens) {
         goto skip_getting_code;
     }
 
-    for (size_t i = code_start + 1; i < tokens->size; i++)
+    for (size_t i = code_start; i < tokens->size; i++)
     {
         found = 0;
         if(tokens->data[i].type == TOKEN_OPEN_CURLY_BRACE) {
             open_counter++;
-        } else if (tokens->data[i].type != TOKEN_CLOSE_CURLY_BRACE) {
-            continue;
+        } else if (tokens->data[i].type == TOKEN_CLOSE_CURLY_BRACE) {
+            open_counter--;
         }
-
+        
         if (open_counter == 0) {
             code_end = i;
             found = 1;
             break;
         }
 
-        open_counter--;
     }
 
     if (!found) {

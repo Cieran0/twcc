@@ -60,6 +60,8 @@ const char* get_var_location(const char* name, function *f, local_vars* vars) {
 }
 
 char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars) {
+    static size_t jump_id = 0;
+
     if (node == NULL) {
         return NULL;
     }
@@ -144,7 +146,8 @@ char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars
             string_builder_append(&sb, registers[i]);
             string_builder_append(&sb, "\n");
         }
-        
+
+        string_builder_append(&sb, "\txor eax, eax\n");
         string_builder_append(&sb, "\tcall ");
         string_builder_append(&sb, node->self.content);
         string_builder_append(&sb, "\n");
@@ -167,8 +170,47 @@ char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars
             string_builder_append(&sb, var_location);
             string_builder_append(&sb, ", rax\n");
         }
-    }
-    else {
+    } else if (type == TOKEN_IF) {
+        assert(node->children_count > 0);
+        ast_node* condition = node->children[0];
+        char* expr_asm = generate_asm_from_expression(condition, f, vars);
+        string_builder_append(&sb, expr_asm);
+        free(expr_asm);
+        string_builder_append(&sb, "\tcmp rax, 0\n\tjz .L");
+        char buff[32];
+        snprintf(buff, 32, "%zu", jump_id++);
+        string_builder_append(&sb, buff);
+        string_builder_append(&sb, "\n");
+        for (size_t i = 1; i < node->children_count; i++)
+        {
+            expr_asm = generate_asm_from_expression(node->children[i], f, vars);
+            string_builder_append(&sb, expr_asm);
+            free(expr_asm);
+        }
+        string_builder_append(&sb, ".L");
+        string_builder_append(&sb, buff);
+        string_builder_append(&sb, ":\n");
+    } else if (type == TOKEN_RETURN) {
+        if(node->children_count > 0) {
+            char* expression_asm = generate_asm_from_expression(node->children[0], f, vars);
+            string_builder_append(&sb, expression_asm);
+            free(expression_asm);
+        } else {
+            string_builder_append(&sb, "\txor rax, rax\n");
+        }
+        string_builder_append(&sb, "\tpop rbp\n");
+        int local_variable_count = vars->size - f->argc;
+        int space_to_reserve = local_variable_count*8;
+        if( local_variable_count > 0 ) {
+            string_builder_append(&sb, "\tadd rsp, ");
+            char space_to_reserve_str[32];
+            snprintf(space_to_reserve_str, 256, "%d", space_to_reserve);
+            string_builder_append(&sb, space_to_reserve_str);
+            string_builder_append(&sb, "\n");
+        }
+        string_builder_append(&sb, "\tret\n");
+
+    } else {
         printf("Encountered unexpected Token of type: %s\n", token_type_names[type]);
         assert(false);
         return NULL;
@@ -203,7 +245,7 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
     int space_to_reserve = local_variable_count*8;
     char space_to_reserve_str[32];
 
-    if( local_variable_count > 0 ) {
+    if (local_variable_count > 0) {
         string_builder_append(&sb, "\tsub rsp, ");
         snprintf(space_to_reserve_str, 256, "%d", space_to_reserve);
         string_builder_append(&sb, space_to_reserve_str);
@@ -221,33 +263,10 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
     {
         ast_node* statement = ast.statements[i];
 
-        if(statement->self.type == TOKEN_RETURN) {
-
-            if(statement->children_count > 0) {
-                char* expression_asm = generate_asm_from_expression(statement->children[0], &func, &vars);
-                string_builder_append(&sb, expression_asm);
-                free(expression_asm);
-            } else {
-                string_builder_append(&sb, "\txor rax, rax\n");
-            }
-
-        } else {
-            char* expression_asm = generate_asm_from_expression(statement, &func, &vars);
-            string_builder_append(&sb, expression_asm);
-            free(expression_asm);
-        } 
+        char* expression_asm = generate_asm_from_expression(statement, &func, &vars);
+        string_builder_append(&sb, expression_asm);
+        free(expression_asm);
     }
-    
-
-    // Tear down stack frame
-    if( local_variable_count > 0 ) {
-        string_builder_append(&sb, "\tadd rsp, ");
-        string_builder_append(&sb, space_to_reserve_str);
-        string_builder_append(&sb, "\n");
-    }
-     
-    string_builder_append(&sb, "\tpop rbp\n");
-    string_builder_append(&sb, "\tret\n");
 
     char* function_asm = string_builder_build(&sb);
     string_builder_destroy(&sb);
