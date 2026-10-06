@@ -61,6 +61,10 @@ test_cases = {
     "numbers": [
         ["double_number", [1], 2]
     ],
+    "if": [
+        ["say_hey", [0], 0],
+        ["say_hey", [1],  1]
+    ],
     "local_variables": [
         ["main", [], 200]
     ],
@@ -79,10 +83,7 @@ test_cases = {
     "operator_precedence": [
         ["main", [], 7]
     ],
-    "if": [
-        ["say_hey", [0], 0],
-        ["say_hey", [1],  1]
-    ]
+    
 }
 
 

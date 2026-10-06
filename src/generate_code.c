@@ -198,16 +198,9 @@ char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars
         } else {
             string_builder_append(&sb, "\txor rax, rax\n");
         }
+        string_builder_append(&sb, "\tmov rsp, rbp\n");
         string_builder_append(&sb, "\tpop rbp\n");
-        int local_variable_count = vars->size - f->argc;
-        int space_to_reserve = local_variable_count*8;
-        if( local_variable_count > 0 ) {
-            string_builder_append(&sb, "\tadd rsp, ");
-            char space_to_reserve_str[32];
-            snprintf(space_to_reserve_str, 256, "%d", space_to_reserve);
-            string_builder_append(&sb, space_to_reserve_str);
-            string_builder_append(&sb, "\n");
-        }
+
         string_builder_append(&sb, "\tret\n");
 
     } else {
@@ -240,9 +233,13 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
     // Set up stack frame
     string_builder_append(&sb, "\tpush rbp\n");
     string_builder_append(&sb, "\tmov rbp, rsp\n");
+    string_builder_append(&sb, "\tand rsp, -16\n");
 
     int local_variable_count = st.size - func.argc;
     int space_to_reserve = local_variable_count*8;
+    if(space_to_reserve %16 != 0) {
+        space_to_reserve += 16 - (space_to_reserve%16);
+    } 
     char space_to_reserve_str[32];
 
     if (local_variable_count > 0) {
