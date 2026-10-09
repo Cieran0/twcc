@@ -173,23 +173,54 @@ char* generate_asm_from_expression(ast_node* node, function *f, local_vars* vars
     } else if (type == TOKEN_IF) {
         assert(node->children_count > 0);
         ast_node* condition = node->children[0];
+
         char* expr_asm = generate_asm_from_expression(condition, f, vars);
         string_builder_append(&sb, expr_asm);
         free(expr_asm);
         string_builder_append(&sb, "\tcmp rax, 0\n\tjz .L");
         char buff[32];
+        char buff_2[32];
         snprintf(buff, 32, "%zu", jump_id++);
         string_builder_append(&sb, buff);
         string_builder_append(&sb, "\n");
+
+
+        size_t else_pos = node->children_count;
         for (size_t i = 1; i < node->children_count; i++)
         {
+            if(node->children[i]->self.type == TOKEN_ELSE) {
+                else_pos = i;
+                break;
+            }
             expr_asm = generate_asm_from_expression(node->children[i], f, vars);
             string_builder_append(&sb, expr_asm);
             free(expr_asm);
         }
+
+        if(else_pos != node->children_count) {
+            snprintf(buff_2, 32, "%zu", jump_id++);
+            string_builder_append(&sb, "\tjmp .L");
+            string_builder_append(&sb, buff_2);
+            string_builder_append(&sb, "\n");
+            string_builder_append(&sb, ".L");
+            string_builder_append(&sb, buff);
+            string_builder_append(&sb, ":\n");
+            memcpy(buff, buff_2, 32);
+
+            node = node->children[else_pos];
+            for (size_t i = 0; i < node->children_count; i++)
+            {
+                expr_asm = generate_asm_from_expression(node->children[i], f, vars);
+                string_builder_append(&sb, expr_asm);
+                free(expr_asm);
+            }
+        }
+        
         string_builder_append(&sb, ".L");
         string_builder_append(&sb, buff);
         string_builder_append(&sb, ":\n");
+
+
     } else if (type == TOKEN_RETURN) {
         if(node->children_count > 0) {
             char* expression_asm = generate_asm_from_expression(node->children[0], f, vars);
@@ -237,6 +268,7 @@ char* generate_asm_from_function(function func, abstract_syntax_tree ast, symbol
 
     int local_variable_count = st.size - func.argc;
     int space_to_reserve = local_variable_count*8;
+    //Need to assure is 16 byte aligned
     if(space_to_reserve %16 != 0) {
         space_to_reserve += 16 - (space_to_reserve%16);
     } 

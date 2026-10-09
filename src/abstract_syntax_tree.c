@@ -266,7 +266,43 @@ ast_node* parse_statement(vector_token* code, size_t* index, size_t end) {
         free(block_statements);
         
         return if_node;
-    } 
+
+    } else if (current.type == TOKEN_ELSE) {
+        ast_node* else_node = create_node(current);
+        (*index)++;
+        if(*index >= end || code->data[*index].type != TOKEN_OPEN_CURLY_BRACE) {
+            if(*index >= end) {
+                printf("At the end\n");
+            }
+            printf("Got token %s\n", token_type_names[code->data[*index].type]);
+            assert(false && "Open { expected for else statment");
+        }
+        (*index)++;
+        int open_count = 1;
+        size_t block_start = *index;
+        while (*index < end && open_count != 0)
+        {
+            if(code->data[*index].type == TOKEN_OPEN_CURLY_BRACE) {
+                open_count++;
+            } else if (code->data[*index].type == TOKEN_CLOSE_CURLY_BRACE) {
+                open_count--;
+            }
+            (*index)++;
+        }
+        if(open_count != 0) {
+            assert("Could not find closing } for else" && false);
+        }
+        size_t block_end = (*index) - 1;
+        ast_node** block_statements = NULL;
+        size_t block_statements_size = parse_block(code, block_start, block_end, &block_statements);
+
+        for (size_t i = 0; i < block_statements_size; i++)
+        {
+            add_child(else_node, block_statements[i]);
+        }
+        free(block_statements);
+        return else_node;
+    }
     else if (current.type == TOKEN_TYPE) {
         //dec variable
         ast_node* declare_node = create_node(current);
@@ -319,16 +355,28 @@ abstract_syntax_tree parse_ast(function* f) {
 
         ast_node* stmt = parse_statement(code, &index, end);
         
-        if (stmt) {
-            ast.statements_count++;
-            ast.statements = (ast_node**)realloc(ast.statements, sizeof(ast_node*) * ast.statements_count);
-            ast.statements[ast.statements_count - 1] = stmt;
-        }
-
-        // Consume the semicolon that ends the statement
+                // Consume the semicolon that ends the statement
         if (index < end && code->data[index].type == TOKEN_SEMI_COLON) {
             index++;
         }
+
+        if (!stmt) {
+            continue;
+        }
+        
+        if(stmt->self.type == TOKEN_ELSE) {
+            if(ast.statements[ast.statements_count-1]->self.type != TOKEN_IF) {
+                print_ast(&ast);
+                assert("else can only come after if" && false);
+            }
+            add_child(ast.statements[ast.statements_count - 1], stmt);
+            continue;
+        }
+
+        ast.statements_count++;
+        ast.statements = (ast_node**)realloc(ast.statements, sizeof(ast_node*) * ast.statements_count);
+        ast.statements[ast.statements_count - 1] = stmt;
+
     }
 
     return ast;

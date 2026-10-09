@@ -83,6 +83,13 @@ test_cases = {
     "operator_precedence": [
         ["main", [], 7]
     ],
+    "else": [
+        ["is_five", [5], 1],
+        ["is_five", [1], 0],
+        ["is_five", [2], 0],
+        ["is_five", [3], 0],
+        ["is_five", [4], 0],
+    ]
     
 }
 
